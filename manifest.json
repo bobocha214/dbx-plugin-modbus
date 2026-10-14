@@ -1,0 +1,286 @@
+{
+  "$schema": "https://raw.githubusercontent.com/t8y2/dbx/main/plugins/manifest.schema.json",
+  "manifest_version": 1,
+  "id": "com.dbx.industrial-protocols",
+  "name": "DBX Industrial Protocols",
+  "version": "0.1.0",
+  "publisher": "dbx",
+  "description": "Read and write Modbus TCP and OPC UA data from industrial devices.",
+  "icon": "assets/plugin.svg",
+  "homepage": "https://dbxio.com/cn/docs/plugin-development",
+  "engines": {
+    "dbx": ">=0.5.68",
+    "host_api": "1"
+  },
+  "permissions": ["host.events", "host.storage"],
+  "entrypoints": {
+    "backend": {
+      "protocol_versions": [1],
+      "transport": "stdio-jsonl",
+      "executable": "bin/dbx-plugin-dbx-industrial-protocols"
+    },
+    "ui": {
+      "root": "ui",
+      "entry": "ui/index.html"
+    }
+  },
+  "contributions": [
+    {
+      "type": "connection-provider",
+      "id": "com.dbx.industrial-protocols.modbus",
+      "label": "Modbus TCP",
+      "icon": "assets/plugin.svg",
+      "database_type": "modbus-tcp",
+      "description": "Connect to a Modbus TCP server such as a PLC, gateway or remote IO coupler.",
+      "fields": [
+        {
+          "key": "display_name",
+          "label": "Connection name",
+          "type": "text",
+          "binding": "name",
+          "default": "Modbus device",
+          "required": true
+        },
+        {
+          "key": "host",
+          "label": "Host",
+          "type": "text",
+          "binding": "host",
+          "default": "192.168.1.10",
+          "required": true
+        },
+        {
+          "key": "port",
+          "label": "Port",
+          "type": "number",
+          "binding": "port",
+          "default": 502,
+          "required": true
+        },
+        {
+          "key": "unit_id",
+          "label": "Unit id (slave address)",
+          "type": "number",
+          "binding": "config",
+          "default": 1
+        },
+        {
+          "key": "timeout_ms",
+          "label": "Request timeout (ms)",
+          "type": "number",
+          "binding": "config",
+          "default": 3000
+        },
+        {
+          "key": "byte_order",
+          "label": "Default byte order",
+          "type": "select",
+          "binding": "config",
+          "default": "ABCD",
+          "options": [
+            { "label": "ABCD - big endian", "value": "ABCD" },
+            { "label": "BADC - byte swap", "value": "BADC" },
+            { "label": "CDAB - word swap", "value": "CDAB" },
+            { "label": "DCBA - little endian", "value": "DCBA" }
+          ]
+        },
+        {
+          "key": "word_order",
+          "label": "Default word order",
+          "type": "select",
+          "binding": "config",
+          "default": "big",
+          "description": "Only affects 64-bit values that span four registers.",
+          "options": [
+            { "label": "High word first", "value": "big" },
+            { "label": "Low word first", "value": "little" }
+          ]
+        }
+      ],
+      "workbench": "com.dbx.industrial-protocols.modbus.workbench",
+      "capabilities": ["test", "connect", "disconnect"]
+    },
+    {
+      "type": "connection-provider",
+      "id": "com.dbx.industrial-protocols.opcua",
+      "label": "OPC UA",
+      "icon": "assets/plugin.svg",
+      "database_type": "opcua",
+      "description": "Connect to an OPC UA server, browse its address space and monitor nodes.",
+      "fields": [
+        {
+          "key": "display_name",
+          "label": "Connection name",
+          "type": "text",
+          "binding": "name",
+          "default": "OPC UA server",
+          "required": true
+        },
+        {
+          "key": "host",
+          "label": "Host",
+          "type": "text",
+          "binding": "host",
+          "default": "192.168.1.10",
+          "required": true
+        },
+        {
+          "key": "port",
+          "label": "Port",
+          "type": "number",
+          "binding": "port",
+          "default": 4840,
+          "required": true
+        },
+        {
+          "key": "endpoint_path",
+          "label": "Endpoint path",
+          "type": "text",
+          "binding": "config",
+          "default": "/",
+          "placeholder": "/"
+        },
+        {
+          "key": "security_policy",
+          "label": "Security policy",
+          "type": "select",
+          "binding": "config",
+          "default": "None",
+          "options": [
+            { "label": "None - no transport security", "value": "None" },
+            { "label": "Basic128Rsa15", "value": "Basic128Rsa15" },
+            { "label": "Basic256Sha256", "value": "Basic256Sha256" }
+          ]
+        },
+        {
+          "key": "security_mode",
+          "label": "Message security mode",
+          "type": "select",
+          "binding": "config",
+          "default": "SignAndEncrypt",
+          "options": [
+            { "label": "Sign", "value": "Sign" },
+            { "label": "Sign and encrypt", "value": "SignAndEncrypt" }
+          ],
+          "visible_when": {
+            "field": "security_policy",
+            "one_of": ["Basic128Rsa15", "Basic256Sha256"]
+          }
+        },
+        {
+          "key": "username",
+          "label": "User name",
+          "type": "text",
+          "binding": "username",
+          "description": "Leave empty to connect anonymously."
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "type": "password",
+          "binding": "password"
+        },
+        {
+          "key": "timeout_ms",
+          "label": "Request timeout (ms)",
+          "type": "number",
+          "binding": "config",
+          "default": 10000
+        }
+      ],
+      "workbench": "com.dbx.industrial-protocols.opcua.workbench",
+      "capabilities": ["test", "connect", "disconnect"]
+    },
+    {
+      "type": "workbench",
+      "id": "com.dbx.industrial-protocols.modbus.workbench",
+      "label": "Modbus TCP workbench",
+      "description": "Register table with periodic polling and guarded writes.",
+      "icon": "assets/plugin.svg",
+      "ai": {
+        "recommendations": [
+          {
+            "id": "explain-registers",
+            "label": "Explain this register table",
+            "prompt": "Explain what each entry in the current Modbus register table represents and point out overlapping or unreadable address ranges.",
+            "order": 10
+          },
+          {
+            "id": "diagnose-failures",
+            "label": "Diagnose failing addresses",
+            "prompt": "Use the errors shown in the workbench to explain which Modbus addresses failed and the most likely cause (illegal address, data type or byte order).",
+            "order": 20
+          }
+        ]
+      }
+    },
+    {
+      "type": "workbench",
+      "id": "com.dbx.industrial-protocols.opcua.workbench",
+      "label": "OPC UA workbench",
+      "description": "Browse the address space, read and subscribe to nodes.",
+      "icon": "assets/plugin.svg",
+      "ai": {
+        "recommendations": [
+          {
+            "id": "summarize-subscriptions",
+            "label": "Summarise subscribed nodes",
+            "prompt": "Summarise the values and status codes of the currently subscribed OPC UA nodes and call out anything that is not good quality.",
+            "order": 10
+          }
+        ]
+      }
+    },
+    {
+      "type": "mcp",
+      "id": "com.dbx.industrial-protocols.mcp",
+      "description": "Read-only Modbus TCP and OPC UA tools for the DBX AI assistant.",
+      "ai_tools": true,
+      "external_tools": false
+    }
+  ],
+  "localizations": {
+    "zh-CN": {
+      "name": "DBX 工业协议",
+      "description": "从工业设备读取和写入 Modbus TCP 与 OPC UA 数据。",
+      "contributions": {
+        "com.dbx.industrial-protocols.modbus": {
+          "label": "Modbus TCP",
+          "description": "连接 Modbus TCP 服务端，例如 PLC、网关或远程 IO。",
+          "fields": {
+            "display_name": { "label": "连接名称" },
+            "host": { "label": "主机地址" },
+            "port": { "label": "端口" },
+            "unit_id": { "label": "单元号（从站地址）" },
+            "timeout_ms": { "label": "请求超时（毫秒）" },
+            "byte_order": { "label": "默认字节序" },
+            "word_order": { "label": "默认字序" }
+          }
+        },
+        "com.dbx.industrial-protocols.opcua": {
+          "label": "OPC UA",
+          "description": "连接 OPC UA 服务端，浏览地址空间并订阅节点。",
+          "fields": {
+            "display_name": { "label": "连接名称" },
+            "host": { "label": "主机地址" },
+            "port": { "label": "端口" },
+            "endpoint_path": { "label": "端点路径" },
+            "security_policy": { "label": "安全策略" },
+            "security_mode": { "label": "消息安全模式" },
+            "username": { "label": "用户名", "description": "留空则以匿名方式连接。" },
+            "password": { "label": "密码" },
+            "timeout_ms": { "label": "请求超时（毫秒）" }
+          }
+        },
+        "com.dbx.industrial-protocols.modbus.workbench": {
+          "label": "Modbus TCP 工作台",
+          "description": "寄存器表、周期轮询与带二次确认的写入。"
+        },
+        "com.dbx.industrial-protocols.opcua.workbench": {
+          "label": "OPC UA 工作台",
+          "description": "浏览地址空间、读取和订阅节点。"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,32 @@
+[package]
+name = "dbx-plugin-dbx-industrial-protocols"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[workspace]
+
+[dependencies]
+dbx-plugin-sdk = { version = "0.1.0" }
+serde_json = "1"
+
+# OPC UA client. The crate is published as `async-opcua` but its library name is
+# `opcua`. Only the `client` feature is enabled: it pulls pure-Rust crypto
+# (`rsa`, `sha2`, `aes`) and therefore needs no OpenSSL/CMake/Perl on the build
+# machine, which matters because DBX sidecars are cross-compiled per target.
+async-opcua = { version = "0.19", default-features = false, features = ["client"] }
+
+# async-opcua drives everything through tokio. The plugin only uses it to own a
+# runtime; Modbus TCP is implemented on blocking std::net sockets. `macros`
+# provides `select!`, which is how a rejected session is told apart from a slow
+# one. `rt-multi-thread` matters: the OPC UA event loop runs as a spawned task
+# while the calling thread blocks on the request.
+tokio = { version = "1", features = ["rt-multi-thread", "net", "time", "sync", "macros"] }
+
+# Keep plugin binaries close to the host app's size: default release settings
+# leave ~20MB of symbols and unoptimized generic code in an OpenDAL-sized backend.
+# panic stays "unwind" so the sidecar protocol can report panics as errors.
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1

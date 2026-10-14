@@ -1,0 +1,11 @@
+/dist/
+/.dbx-dev/
+.dbx-repository-signing-key.env
+.DS_Store
+*.log
+
+# Agent scratch state and local memory, not part of the plugin.
+/.workbuddy/
+
+# Rust build output for the sidecar.
+/backend/target/

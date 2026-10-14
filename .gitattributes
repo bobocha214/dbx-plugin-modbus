@@ -1,0 +1,16 @@
+# Normalise line endings in the repository so clones on any OS produce the same
+# bytes. Windows checkouts still get CRLF for text the user is expected to edit.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.dbxp binary
+
+# Rust and JS sources are formatted by tooling that expects LF.
+*.rs text eol=lf
+*.toml text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
