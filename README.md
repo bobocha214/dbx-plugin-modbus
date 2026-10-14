@@ -21,6 +21,45 @@ Built from the official `dbx-plugin create` **Rust + frontend** template.
 Both workbenches are served by the same `ui/index.html`; the page routes on
 `dbxPlugin.contributionId`.
 
+## Interface
+
+The two workbenches reproduce the layout of the tools engineers already know, so
+nothing has to be relearned.
+
+**Modbus TCP** follows [Modbus Poll](https://www.modbustools.com/modbus_poll.html):
+
+- A status strip above the register view shows `Tx` (requests sent), `Err`
+  (failed responses), `ID` (slave id), `F` (active function code) and `SR`
+  (scan rate) for the selected request.
+- The left pane defines requests — alias, area, address, quantity, type, byte
+  order, slave id — one row per function code, exactly like a poll definition.
+- The right pane is a dense `address = value` register grid, laid out in as many
+  columns as the pane allows.
+- **Double-click a register or coil to write it.** Read-only areas (input
+  registers, discrete inputs) are not clickable, matching the backend rule.
+- A display selector renders values as unsigned, signed, hex or binary. The
+  raw 16-bit word is shown; the decoded 32/64-bit value appears in the tooltip.
+- The divider between the panes is draggable (and arrow-key adjustable), because
+  a wide register dump and a long request list compete for space.
+
+**OPC UA** follows [UaExpert](https://documentation.unified-automation.com/uaexpert/):
+
+- Three panes: **Address space**, the **Data access view**, and **Attributes**.
+- The address space tree prefixes each node with a colour-coded class glyph
+  (`O` object, `V` variable, `M` method, `W` view, `T` type) standing in for
+  UaExpert's icon set. Clicking a node expands it; double-clicking adds it to the
+  data access view.
+- A **namespace picker** highlights one namespace at a time — matching nodes go
+  bold and the rest dim, which is UaExpert's behaviour rather than filtering
+  rows out, so the tree shape stays stable.
+- The data access view lists node id, value, data type, timestamp and quality.
+  Clicking a value opens the write dialog; a node that is not `Good` is flagged.
+- The attributes pane describes the node selected in the tree.
+- Both dividers are draggable.
+
+Both workbenches report connection state in the title bar and never write to the
+device without a confirmation dialog that names the exact target and value.
+
 ## Modbus TCP
 
 Implemented directly in `backend/src/modbus.rs` — Modbus Application Protocol over

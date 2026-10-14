@@ -9,14 +9,36 @@
        * DBX injects its design tokens on the document root and keeps
        * data-dbx-theme up to date, so everything below follows the host theme.
        * The fallbacks keep the page readable in the standalone dev host.
+       *
+       * The layout follows the two tools this plugin replaces:
+       *   - Modbus Poll: a status strip (Tx / Err / ID / F / SR) above a dense
+       *     address = value grid, with the write action reached by activating a
+       *     cell rather than by hunting for a button in the row.
+       *   - UaExpert: a three pane workspace — address space tree, data access
+       *     view, attributes pane — with a namespace highlight picker.
        */
       :root {
         color-scheme: light dark;
         --industrial-border: color-mix(in srgb, var(--color-foreground, #18181b) 14%, transparent);
+        --industrial-strong-border: color-mix(in srgb, var(--color-foreground, #18181b) 24%, transparent);
         --industrial-subtle: color-mix(in srgb, var(--color-foreground, #18181b) 6%, transparent);
-        --industrial-muted: color-mix(in srgb, var(--color-foreground, #18181b) 62%, transparent);
+        --industrial-muted: color-mix(in srgb, var(--color-foreground, #18181b) 58%, transparent);
+        /* The strip chrome (toolbars, status bar, headers) is deliberately a
+           shade away from the content surface so panes read as separate. */
+        --industrial-chrome: color-mix(in srgb, var(--color-background, #fff) 93%, var(--color-foreground, #000) 7%);
+        --industrial-chrome-deep: color-mix(in srgb, var(--color-background, #fff) 88%, var(--color-foreground, #000) 12%);
+        --industrial-hover: color-mix(in srgb, var(--color-primary, #2563eb) 12%, transparent);
         --industrial-good: #16a34a;
         --industrial-bad: #dc2626;
+        --industrial-warn: #d97706;
+        --industrial-value: #0f766e;
+        --industrial-mono: var(--font-mono, ui-monospace, "SFMono-Regular", Consolas, monospace);
+      }
+      [data-dbx-theme="dark"] {
+        --industrial-good: #4ade80;
+        --industrial-bad: #f87171;
+        --industrial-warn: #fbbf24;
+        --industrial-value: #5eead4;
       }
       * { box-sizing: border-box; }
       html, body { height: 100%; }
@@ -25,101 +47,259 @@
         background: var(--color-background, #ffffff);
         color: var(--color-foreground, #18181b);
         font-family: var(--font-sans, Inter, ui-sans-serif, system-ui, sans-serif);
-        font-size: 13px;
+        font-size: 12.5px;
       }
       #app { display: flex; flex-direction: column; height: 100%; }
-      header {
-        display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-        padding: 8px 12px;
+
+      /* ---------------------------------------------------------------- chrome */
+      .appbar {
+        display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+        padding: 7px 12px;
         border-bottom: 1px solid var(--industrial-border);
-        background: color-mix(in srgb, var(--color-background, #fff) 92%, var(--color-foreground, #000) 8%);
+        background: var(--industrial-chrome);
       }
-      .title { font-weight: 650; margin-right: 4px; }
+      .appbar .title { font-weight: 650; font-size: 13px; letter-spacing: .01em; }
+      .appbar .sep { width: 1px; align-self: stretch; background: var(--industrial-border); margin: 2px 2px; }
       .spacer { flex: 1; }
+      .conn {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 2px 9px; border-radius: 999px;
+        background: var(--industrial-subtle); border: 1px solid var(--industrial-border);
+        font-size: 11.5px; max-width: 360px;
+      }
+      .conn .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--industrial-muted); flex: none; }
+      .conn.live .dot { background: var(--industrial-good); }
+      .conn.dead .dot { background: var(--industrial-bad); }
+      .conn .id { font-family: var(--industrial-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
       button, select, input {
-        font: inherit;
-        color: inherit;
+        font: inherit; color: inherit;
         background: var(--color-background, #fff);
         border: 1px solid var(--industrial-border);
         border-radius: var(--radius-sm, 6px);
-        padding: 4px 8px;
+        padding: 3px 8px;
       }
-      input[type="number"] { width: 76px; }
-      button {
-        cursor: pointer;
-        background: color-mix(in srgb, var(--color-background, #fff) 88%, var(--color-foreground, #000) 12%);
-      }
-      button:hover:not(:disabled) { border-color: color-mix(in srgb, var(--color-primary, #2563eb) 55%, transparent); }
-      button:disabled { opacity: .5; cursor: not-allowed; }
+      button { cursor: pointer; white-space: nowrap; }
+      button:hover:not(:disabled) { background: var(--industrial-hover); }
+      button:active:not(:disabled) { background: var(--industrial-chrome-deep); }
+      button:disabled { opacity: .45; cursor: not-allowed; }
       button.primary {
         background: var(--color-primary, #2563eb);
         color: var(--color-primary-foreground, #fff);
         border-color: transparent;
       }
+      button.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--color-primary, #2563eb) 85%, #000); }
       button.danger { color: var(--industrial-bad); }
-      button.ghost { background: transparent; border-color: transparent; }
-      main { flex: 1; min-height: 0; display: flex; }
-      .column { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-      .column + .column { border-left: 1px solid var(--industrial-border); flex: 0 0 46%; }
-      .column-head {
-        display: flex; align-items: center; gap: 6px; padding: 6px 10px;
-        border-bottom: 1px solid var(--industrial-border);
+      button.ghost { background: transparent; border-color: transparent; padding: 3px 5px; }
+      button.ghost:hover:not(:disabled) { background: var(--industrial-subtle); }
+      button.icon { padding: 3px 6px; line-height: 1; }
+      /* A toolbar toggle that latches on, mirroring the poll button state. */
+      button[aria-pressed="true"] {
+        background: var(--industrial-hover);
+        border-color: color-mix(in srgb, var(--color-primary, #2563eb) 55%, transparent);
         font-weight: 600;
       }
-      .scroll { flex: 1; overflow: auto; }
-      table { border-collapse: collapse; width: 100%; }
-      th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--industrial-subtle); vertical-align: middle; }
-      th { position: sticky; top: 0; z-index: 1; background: var(--color-background, #fff); font-weight: 600; white-space: nowrap; }
-      td.value { font-family: var(--font-mono, ui-monospace, monospace); }
-      tr.error td { background: color-mix(in srgb, var(--industrial-bad) 10%, transparent); }
-      .badge {
-        display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px;
-        background: var(--industrial-subtle); color: var(--industrial-muted);
-        max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      input[type="number"] { width: 74px; }
+      input:focus-visible, select:focus-visible, button:focus-visible {
+        outline: 2px solid color-mix(in srgb, var(--color-primary, #2563eb) 60%, transparent);
+        outline-offset: -1px;
       }
+      .field { display: inline-flex; align-items: center; gap: 5px; color: var(--industrial-muted); }
+      .field > input, .field > select { color: var(--color-foreground, #18181b); }
+
+      /* A compact readout for the status strip: label above value, as in the
+         Tx / Err / ID / F / SR block of Modbus Poll. */
+      .stats { display: flex; align-items: stretch; gap: 0; border: 1px solid var(--industrial-border); border-radius: 6px; overflow: hidden; }
+      .stat { display: flex; flex-direction: column; justify-content: center; gap: 1px; padding: 2px 9px; min-width: 54px; background: var(--color-background, #fff); }
+      .stat + .stat { border-left: 1px solid var(--industrial-border); }
+      .stat .k { font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--industrial-muted); }
+      .stat .v { font-family: var(--industrial-mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+      .stat .v.bad { color: var(--industrial-bad); }
+      .stat .v.good { color: var(--industrial-good); }
+
+      /* ---------------------------------------------------------------- layout */
+      main { flex: 1; min-height: 0; display: flex; }
+      .column { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+      /* A draggable divider between panes, so a wide register dump or a long
+         node list can be given more room. */
+      .splitter {
+        flex: 0 0 5px; cursor: col-resize; background: transparent;
+        position: relative; margin: 0 -2px; z-index: 3;
+      }
+      .splitter::after {
+        content: ""; position: absolute; inset: 0 2px;
+        background: var(--industrial-border); opacity: 0; transition: opacity .12s;
+      }
+      .splitter:hover::after, .splitter.dragging::after { opacity: 1; background: var(--color-primary, #2563eb); }
+      body.resizing { cursor: col-resize; user-select: none; }
+      .pane-head {
+        display: flex; align-items: center; gap: 6px;
+        padding: 5px 10px; background: var(--industrial-chrome);
+        border-bottom: 1px solid var(--industrial-border);
+        font-weight: 600; font-size: 12px; min-height: 30px;
+      }
+      .pane-head .count { font-weight: 400; color: var(--industrial-muted); font-size: 11px; }
+      .toolbar {
+        display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+        padding: 5px 10px; background: var(--color-background, #fff);
+        border-bottom: 1px solid var(--industrial-subtle);
+      }
+      .scroll { flex: 1; overflow: auto; min-height: 0; }
+
+      /* ---------------------------------------------------------------- tables */
+      table { border-collapse: separate; border-spacing: 0; width: 100%; }
+      th, td {
+        text-align: left; padding: 3px 7px;
+        border-bottom: 1px solid var(--industrial-subtle);
+        vertical-align: middle; white-space: nowrap;
+      }
+      th {
+        position: sticky; top: 0; z-index: 2;
+        background: var(--industrial-chrome);
+        border-bottom: 1px solid var(--industrial-strong-border);
+        font-weight: 600; font-size: 11px;
+        text-transform: uppercase; letter-spacing: .05em;
+        color: var(--industrial-muted);
+      }
+      /* The request table is definition-only and needs about 700px; the value
+         grid takes whatever is left. */
+      .request-table th { white-space: nowrap; }
+      tbody tr:hover > td { background: var(--industrial-subtle); }
+      tbody tr.selected > td { background: var(--industrial-hover); }
+      td.num, td.mono { font-family: var(--industrial-mono); font-variant-numeric: tabular-nums; }
+      td.right { text-align: right; }
+      td.registers { color: var(--industrial-muted); font-size: 11px; }
+      tr.error > td { background: color-mix(in srgb, var(--industrial-bad) 12%, transparent); }
+      tr.error:hover > td { background: color-mix(in srgb, var(--industrial-bad) 18%, transparent); }
+      .val { color: var(--industrial-value); font-weight: 600; }
       .good { color: var(--industrial-good); }
       .bad { color: var(--industrial-bad); }
-      .tree { padding: 6px 4px; }
+      .warn { color: var(--industrial-warn); }
+      .empty { padding: 26px 20px; text-align: center; color: var(--industrial-muted); line-height: 1.6; }
+      .hint { padding: 8px 12px; color: var(--industrial-muted); line-height: 1.6; font-size: 11.5px; border-top: 1px solid var(--industrial-subtle); }
+
+      /* Cells holding a live value behave like the double-click-to-edit cells of
+         the reference tools: monospace, tabular, and visibly activatable. */
+      .cell-value {
+        cursor: pointer; border-radius: 4px; padding: 1px 5px; margin: -1px -5px;
+        display: inline-block; min-width: 46px;
+      }
+      .cell-value:hover { background: var(--industrial-hover); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary, #2563eb) 45%, transparent); }
+      .cell-value.stale { opacity: .55; }
+
+      /* --------------------------------------------------------- register grid */
+      /* Modbus Poll shows many registers per screen as `address = value` pairs
+         laid out in several columns. `auto-fill` reproduces that density while
+         staying responsive; the column floor is wide enough that a 5-digit
+         address plus a 5-digit value never wraps. */
+      .grid {
+        display: grid; gap: 1px 6px; padding: 6px 8px; align-content: start;
+        /* Narrow enough that a five-digit address and a five-digit value fit in
+           one cell at any pane width, so the column count adapts instead of
+           overflowing. `min-width:0` on the cell lets the value ellipsise. */
+        grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+      }
+      .cell {
+        display: flex; align-items: baseline; gap: 5px;
+        padding: 2px 6px; border-radius: 4px;
+        border: 1px solid transparent; cursor: pointer;
+        min-width: 0; overflow: hidden;
+      }
+      .cell:hover { background: var(--industrial-hover); border-color: color-mix(in srgb, var(--color-primary, #2563eb) 35%, transparent); }
+      .cell.err { background: color-mix(in srgb, var(--industrial-bad) 12%, transparent); }
+      .cell .addr { font-family: var(--industrial-mono); font-size: 11px; color: var(--industrial-muted); flex: none; }
+      .cell .eq { color: var(--industrial-border); flex: none; }
+      .cell .v {
+        font-family: var(--industrial-mono); font-variant-numeric: tabular-nums;
+        color: var(--industrial-value); font-weight: 600;
+        margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .cell .v.bad { color: var(--industrial-bad); font-weight: 400; }
+      /* An error is summarised in the cell and spelled out in the tooltip, so a
+         long exception name cannot stretch the grid row. */
+      .cell.err .v { margin-left: 0; flex: 1; min-width: 0; }
+
+      /* ------------------------------------------------------------------ tree */
+      .tree { padding: 4px 2px; }
       .tree-row {
-        display: flex; align-items: center; gap: 4px; padding: 2px 4px;
+        display: flex; align-items: center; gap: 3px; padding: 2px 5px;
         border-radius: 4px; cursor: pointer; white-space: nowrap;
       }
       .tree-row:hover { background: var(--industrial-subtle); }
-      .twisty { width: 14px; display: inline-block; text-align: center; color: var(--industrial-muted); }
-      .node-class { color: var(--industrial-muted); font-size: 11px; }
-      .hint { padding: 12px; color: var(--industrial-muted); line-height: 1.6; }
-      .empty { padding: 24px; text-align: center; color: var(--industrial-muted); }
-      .toolbar { display: flex; gap: 6px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--industrial-subtle); flex-wrap: wrap; }
+      .tree-row.selected { background: var(--industrial-hover); }
+      .tree-row.dim { opacity: .5; }
+      .tree-row.dim .name { font-weight: 400; }
+      .tree-row.highlight .name { font-weight: 700; }
+      .twisty { width: 13px; display: inline-block; text-align: center; color: var(--industrial-muted); flex: none; font-size: 9px; }
+      .nclass {
+        width: 15px; text-align: center; flex: none; font-size: 10.5px;
+        font-family: var(--industrial-mono); color: var(--industrial-muted);
+      }
+      /* Node class colours echo UaExpert's icon set. */
+      .nclass.object { color: #2563eb; }
+      .nclass.variable { color: #16a34a; }
+      .nclass.method { color: #9333ea; }
+      .nclass.view { color: #0891b2; }
+      .nclass.type { color: #d97706; }
+      .tree .name { overflow: hidden; text-overflow: ellipsis; }
+      [data-dbx-theme="dark"] .nclass.object { color: #60a5fa; }
+      [data-dbx-theme="dark"] .nclass.variable { color: #4ade80; }
+      [data-dbx-theme="dark"] .nclass.method { color: #c084fc; }
+      [data-dbx-theme="dark"] .nclass.view { color: #22d3ee; }
+      [data-dbx-theme="dark"] .nclass.type { color: #fbbf24; }
+
+      /* ------------------------------------------------------------ attributes */
+      .attrs { padding: 2px 0; }
+      .attr { display: flex; gap: 8px; padding: 3px 10px; border-bottom: 1px solid var(--industrial-subtle); }
+      .attr .k { flex: 0 0 96px; color: var(--industrial-muted); font-size: 11px; }
+      .attr .v { flex: 1; font-family: var(--industrial-mono); font-size: 11.5px; word-break: break-all; white-space: normal; }
+      .kv { font-family: var(--industrial-mono); }
+
+      /* --------------------------------------------------------------- dialogs */
       dialog {
         border: 1px solid var(--industrial-border);
         border-radius: var(--radius-md, 10px);
         background: var(--color-background, #fff);
-        color: inherit;
-        max-width: 460px;
-        padding: 16px 18px;
+        color: inherit; max-width: 470px; padding: 16px 18px;
+        box-shadow: 0 18px 48px rgba(0,0,0,.28);
       }
-      dialog::backdrop { background: rgba(0, 0, 0, .38); }
+      dialog::backdrop { background: rgba(0, 0, 0, .42); }
       dialog h3 { margin: 0 0 8px; font-size: 14px; }
       dialog p { margin: 0 0 12px; line-height: 1.6; color: var(--industrial-muted); }
       dialog .actions { display: flex; justify-content: flex-end; gap: 8px; }
       dialog .payload {
-        font-family: var(--font-mono, monospace); background: var(--industrial-subtle);
-        padding: 8px; border-radius: 6px; margin-bottom: 12px; overflow: auto;
+        font-family: var(--industrial-mono); background: var(--industrial-subtle);
+        padding: 8px 10px; border-radius: 6px; margin-bottom: 12px;
+        overflow: auto; font-size: 12px;
       }
-      #toast { position: fixed; right: 16px; bottom: 16px; max-width: 420px; z-index: 9; display: flex; flex-direction: column; gap: 6px; }
+      dialog .row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+      dialog .row label { color: var(--industrial-muted); flex: none; }
+      dialog .row input, dialog .row select { flex: 1; min-width: 0; }
+
+      /* --------------------------------------------------------------- toasts */
+      /* Sits clear of the bottom hint strips, so a toast never covers the
+         instructions at the foot of a pane. */
+      #toast { position: fixed; right: 16px; bottom: 46px; max-width: 420px; z-index: 9; display: flex; flex-direction: column; gap: 6px; }
       .toast {
-        padding: 8px 12px; border-radius: 8px; border: 1px solid var(--industrial-border);
-        background: var(--color-background, #fff); box-shadow: 0 8px 24px rgba(0,0,0,.15);
+        padding: 8px 12px; border-radius: 8px;
+        border: 1px solid var(--industrial-border);
+        background: var(--color-background, #fff);
+        box-shadow: 0 8px 24px rgba(0,0,0,.18);
         white-space: pre-wrap; line-height: 1.5;
+        border-left: 3px solid var(--industrial-good);
       }
-      .toast.error { border-color: var(--industrial-bad); }
+      .toast.error { border-left-color: var(--industrial-bad); }
+      .toast.info { border-left-color: var(--color-primary, #2563eb); }
     </style>
   </head>
   <body>
     <div id="app">
-      <header>
+      <header class="appbar">
         <span class="title" id="title">Industrial Protocols</span>
-        <span class="badge" id="connection-badge">…</span>
+        <span class="sep"></span>
+        <span class="conn" id="conn"><span class="dot"></span><span class="id" id="conn-id">…</span></span>
+        <span class="spacer"></span>
+        <span id="appbar-extra"></span>
       </header>
       <main id="main"></main>
     </div>
@@ -138,41 +318,57 @@
       const COPY = {
         en: {
           modbus: "Modbus TCP", opcua: "OPC UA",
-          addRow: "Add row", remove: "Remove", poll: "Start polling", stop: "Stop polling",
-          readNow: "Read now", interval: "Interval (ms)",
+          addRow: "Add request", remove: "Remove", poll: "Poll", stop: "Stop",
+          readOnce: "Read once", interval: "Scan rate", ms: "ms",
           name: "Name", area: "Area", address: "Address", quantity: "Qty", dataType: "Type",
-          byteOrder: "Byte order", unit: "Unit", value: "Value", registers: "Registers", status: "Status",
-          write: "Write", preset: "default", readOnce: "Read", subscribe: "Subscribe",
-          unsubscribe: "Unsubscribe", nodeId: "Node id", addNodeHint: "Enter to add a node id",
-          browse: "Address space", selected: "Watch list",
-          browseHint: "Click a node to expand it. Double-click or right-click a node to add it to the watch list.",
-          emptyNodes: "Nothing is being watched yet. Browse the address space or type a node id above.",
-          emptyRows: "No rows yet. Add a row to start reading registers.",
+          byteOrder: "Byte order", unit: "Slave id", value: "Value", registers: "Registers",
+          status: "Status", alias: "Alias", format: "Display",
+          write: "Write", preset: "default", subscribe: "Subscribe", unsubscribe: "Unsubscribe",
+          nodeId: "Node id", addNodeHint: "Type a node id and press Enter to add it to the watch list",
+          browse: "Address space", watch: "Data access view", attributes: "Attributes",
+          browseHint: "Click to expand. Double-click adds a node to the data access view.",
+          attrHint: "Select a node in the address space to see its attributes.",
+          namespace: "Namespace", allNamespaces: "No highlight", refresh: "Rebrowse",
+          emptyNodes: "Nothing is being watched. Browse the address space, or type a node id above.",
+          emptyRows: "No requests yet. Add one to start reading.",
+          emptyGrid: "No registers to show yet.",
           confirmWrite: "Confirm write",
           confirmWriteBody: "This sends a write request to the device. Check the target and the value before continuing.",
           cancel: "Cancel", confirm: "Write now",
-          notConnected: "no connection",
+          notConnected: "no connection", connected: "connected",
           noConnection: "This workbench was opened without a connection. Open it from a saved connection in the sidebar.",
-          loading: "Loading…", noChildren: "no children"
+          loading: "Loading…", noChildren: "no children",
+          tx: "Tx", err: "Err", id: "ID", fn: "F", sr: "SR", rows: "Rows",
+          quality: "Quality", timestamp: "Timestamp", nodeClass: "Class",
+          writeTitleRegister: "Write register", writeTitleCoil: "Write coil", writeTitleNode: "Write node",
+          writeHint: "Double-click a value to write it. Read-only areas are not editable."
         },
         zh: {
           modbus: "Modbus TCP", opcua: "OPC UA",
-          addRow: "添加行", remove: "删除", poll: "开始轮询", stop: "停止轮询",
-          readNow: "立即读取", interval: "轮询间隔（毫秒）",
+          addRow: "添加请求", remove: "删除", poll: "轮询", stop: "停止",
+          readOnce: "单次读取", interval: "扫描周期", ms: "毫秒",
           name: "名称", area: "区域", address: "地址", quantity: "数量", dataType: "类型",
-          byteOrder: "字节序", unit: "单元号", value: "值", registers: "寄存器", status: "状态",
-          write: "写入", preset: "默认", readOnce: "读取", subscribe: "订阅",
-          unsubscribe: "取消订阅", nodeId: "节点 ID", addNodeHint: "输入节点 ID 后回车添加",
-          browse: "地址空间", selected: "监视列表",
-          browseHint: "单击节点展开；双击或右键节点可加入监视列表。",
+          byteOrder: "字节序", unit: "从站号", value: "值", registers: "寄存器",
+          status: "状态", alias: "别名", format: "显示格式",
+          write: "写入", preset: "默认", subscribe: "订阅", unsubscribe: "取消订阅",
+          nodeId: "节点 ID", addNodeHint: "输入节点 ID 后回车加入监视列表",
+          browse: "地址空间", watch: "数据访问视图", attributes: "属性",
+          browseHint: "单击展开；双击节点可加入数据访问视图。",
+          attrHint: "在地址空间中选择节点以查看其属性。",
+          namespace: "命名空间", allNamespaces: "不突出显示", refresh: "重新浏览",
           emptyNodes: "监视列表为空。请浏览地址空间，或在上方输入节点 ID。",
-          emptyRows: "还没有行。添加一行即可开始读取寄存器。",
+          emptyRows: "还没有请求。添加一条即可开始读取。",
+          emptyGrid: "暂无可显示的寄存器。",
           confirmWrite: "确认写入",
           confirmWriteBody: "这会对设备发起写操作，请核对目标地址与数值。",
           cancel: "取消", confirm: "确认写入",
-          notConnected: "未连接",
+          notConnected: "未连接", connected: "已连接",
           noConnection: "该工作台未绑定连接，请从左侧连接树中的已保存连接打开。",
-          loading: "加载中…", noChildren: "无子节点"
+          loading: "加载中…", noChildren: "无子节点",
+          tx: "发送", err: "错误", id: "从站", fn: "功能码", sr: "周期", rows: "行数",
+          quality: "质量", timestamp: "时间戳", nodeClass: "类别",
+          writeTitleRegister: "写入寄存器", writeTitleCoil: "写入线圈", writeTitleNode: "写入节点",
+          writeHint: "双击数值即可写入；只读区域不可编辑。"
         }
       };
       let t = COPY.en;
@@ -197,7 +393,7 @@
       }
 
       function toast(message, kind) {
-        const node = el("div", { class: "toast" + (kind === "error" ? " error" : ""), text: message });
+        const node = el("div", { class: "toast" + (kind ? " " + kind : ""), text: message });
         document.querySelector("#toast").appendChild(node);
         setTimeout(() => node.remove(), kind === "error" ? 9000 : 3500);
       }
@@ -207,11 +403,10 @@
         return new Promise((resolve) => {
           const dialog = el("dialog");
           dialog.appendChild(el("h3", { text: options.title }));
-          dialog.appendChild(el("p", { text: options.body }));
+          if (options.body) dialog.appendChild(el("p", { text: options.body }));
           if (options.payload) dialog.appendChild(el("div", { class: "payload", text: options.payload }));
-          if (options.field) {
-            dialog.appendChild(el("div", { style: "display:flex;justify-content:flex-end;margin-bottom:12px" }, [options.field]));
-          }
+          if (options.field) dialog.appendChild(el("div", { class: "row" }, [options.label && el("label", { text: options.label }), options.field]));
+          else if (options.fieldNode) dialog.appendChild(el("div", { class: "row" }, [options.fieldNode]));
           dialog.appendChild(el("div", { class: "actions" }, [
             el("button", { text: t.cancel, onclick: () => { dialog.close(); resolve(null); } }),
             el("button", { class: "primary", text: options.confirmLabel || t.confirm,
@@ -220,7 +415,7 @@
           dialog.addEventListener("close", () => dialog.remove());
           document.body.appendChild(dialog);
           dialog.showModal();
-          if (options.field) options.field.focus();
+          if (options.field) { options.field.focus(); options.field.select && options.field.select(); }
         });
       }
 
@@ -228,13 +423,20 @@
         return host.invoke(method, params, { timeoutMs: timeoutMs || 30000 });
       }
 
+      function errorText(error) {
+        return String(error && error.message ? error.message : error);
+      }
+
       function formatValue(value) {
-        if (value === null || value === undefined) return "";
+        if (value === null || value === undefined) return "—";
         if (typeof value === "number") {
           if (Number.isInteger(value)) return String(value);
           return String(Number(value.toPrecision(8)));
         }
-        if (typeof value === "object") return JSON.stringify(value);
+        if (typeof value === "object") {
+          if (typeof value.byteLength === "number") return `[${value.byteLength} bytes]`;
+          return JSON.stringify(value);
+        }
         return String(value);
       }
 
@@ -244,6 +446,18 @@
         if (trimmed === "false") return false;
         if (trimmed !== "" && trimmed !== "-" && !Number.isNaN(Number(trimmed))) return Number(trimmed);
         return trimmed;
+      }
+
+      /** Renders a 16-bit register in the selected display format. */
+      function formatRegister(value, format) {
+        if (value === null || value === undefined) return "—";
+        const word = ((Number(value) % 65536) + 65536) % 65536;
+        switch (format) {
+          case "signed": return String(word >= 32768 ? word - 65536 : word);
+          case "hex": return "0x" + word.toString(16).toUpperCase().padStart(4, "0");
+          case "binary": return word.toString(2).padStart(16, "0");
+          default: return String(word);
+        }
       }
 
       function storageKeyFor(kind) {
@@ -267,8 +481,88 @@
         });
       }
 
+      function readStorage(key) {
+        if (!hasStorage()) return Promise.resolve(null);
+        return host.storage.get(key).catch(() => null);
+      }
+
+      function writeStorage(key, value) {
+        if (!hasStorage()) return;
+        host.storage.set(key, value).catch(() => {});
+      }
+
+      /** A labelled readout for the status strip. */
+      function stat(label, initial) {
+        const value = el("span", { class: "v", text: initial === undefined ? "—" : String(initial) });
+        const node = el("div", { class: "stat" }, [
+          el("span", { class: "k", text: label }),
+          value
+        ]);
+        return { node, set: (text, kind) => { value.textContent = text; value.className = "v" + (kind ? " " + kind : ""); } };
+      }
+
+      /**
+       * A draggable divider that reallocates width between two flex children.
+       *
+       * `before` keeps its share until dragging starts; from then on both panes
+       * carry explicit flex-basis in pixels, so a pane can never be collapsed
+       * to nothing (MIN_PANE) and the layout survives a resize.
+       */
+      function createSplitter(container, before, after) {
+        const MIN_PANE = 180;
+        const splitter = el("div", { class: "splitter", title: "Drag to resize" });
+        let dragging = false;
+
+        const onMove = (event) => {
+          if (!dragging) return;
+          const bounds = container.getBoundingClientRect();
+          const x = (event.touches ? event.touches[0].clientX : event.clientX) - bounds.left;
+          const width = Math.max(MIN_PANE, Math.min(bounds.width - MIN_PANE - splitter.offsetWidth, x));
+          before.style.flex = `0 0 ${width}px`;
+          after.style.flex = `1 1 auto`;
+          event.preventDefault();
+        };
+        const stop = () => {
+          if (!dragging) return;
+          dragging = false;
+          splitter.classList.remove("dragging");
+          document.body.classList.remove("resizing");
+          window.removeEventListener("mousemove", onMove);
+          window.removeEventListener("mouseup", stop);
+          window.removeEventListener("touchmove", onMove);
+          window.removeEventListener("touchend", stop);
+        };
+        const start = (event) => {
+          dragging = true;
+          splitter.classList.add("dragging");
+          document.body.classList.add("resizing");
+          window.addEventListener("mousemove", onMove);
+          window.addEventListener("mouseup", stop);
+          window.addEventListener("touchmove", onMove, { passive: false });
+          window.addEventListener("touchend", stop);
+          event.preventDefault();
+        };
+
+        splitter.addEventListener("mousedown", start);
+        splitter.addEventListener("touchstart", start, { passive: false });
+        // Keyboard access: arrow keys nudge the divider like a real splitter.
+        splitter.setAttribute("tabindex", "0");
+        splitter.setAttribute("role", "separator");
+        splitter.addEventListener("keydown", (event) => {
+          const step = event.key === "ArrowLeft" ? -24 : event.key === "ArrowRight" ? 24 : 0;
+          if (!step) return;
+          const current = before.getBoundingClientRect().width;
+          const bounds = container.getBoundingClientRect();
+          const width = Math.max(MIN_PANE, Math.min(bounds.width - MIN_PANE, current + step));
+          before.style.flex = `0 0 ${width}px`;
+          after.style.flex = "1 1 auto";
+          event.preventDefault();
+        });
+        return splitter;
+      }
+
       // ---------------------------------------------------------------------
-      // Modbus TCP workbench
+      // Modbus TCP workbench  (Modbus Poll layout)
       // ---------------------------------------------------------------------
       const AREAS = [
         ["holding", "Holding register (FC03)"],
@@ -278,116 +572,288 @@
       ];
       const DATA_TYPES = ["uint16", "int16", "uint32", "int32", "float32", "uint64", "int64", "float64"];
       const BYTE_ORDERS = ["default", "ABCD", "BADC", "CDAB", "DCBA"];
+      const FORMATS = ["unsigned", "signed", "hex", "binary"];
+
+      /** Function code shown in the status strip, mirroring Modbus Poll's `F`. */
+      function functionCode(area, forWrite) {
+        const table = {
+          coil: forWrite ? "05/15" : "01",
+          discrete: "02",
+          holding: forWrite ? "06/16" : "03",
+          input: "04"
+        };
+        return table[area] || "—";
+      }
+
+      function isBitArea(area) {
+        return area === "coil" || area === "discrete";
+      }
 
       function createModbusWorkbench(root) {
         const storageKey = storageKeyFor("modbus.rows");
-        const state = { rows: [], timer: null, intervalMs: 1000, busy: false };
+        const state = {
+          rows: [], request: null, timer: null, intervalMs: 1000,
+          busy: false, format: "unsigned", tx: 0, err: 0, scanned: 0, lastResult: null
+        };
 
-        const tbody = el("tbody");
-        const table = el("table", {}, [
-          el("thead", {}, [el("tr", {}, [
-            el("th", { text: t.name }), el("th", { text: t.area }), el("th", { text: t.address }),
-            el("th", { text: t.quantity }), el("th", { text: t.dataType }), el("th", { text: t.byteOrder }),
-            el("th", { text: t.unit }), el("th", { text: t.value }), el("th", { text: t.registers }),
-            el("th", { text: t.status }), el("th", { text: "" })
-          ])])
-        , tbody]);
+        // ---- status strip -------------------------------------------------
+        const sTx = stat(t.tx, 0);
+        const sErr = stat(t.err, 0);
+        const sId = stat(t.id, "—");
+        const sF = stat(t.fn, "—");
+        const sSr = stat(t.sr, "1000");
+        const strip = el("div", { class: "stats" }, [sTx.node, sErr.node, sId.node, sF.node, sSr.node]);
+
+        const formatSelect = el("select", {
+          title: t.format,
+          onchange: (event) => { state.format = event.target.value; renderGrid(); }
+        }, FORMATS.map((value) => el("option", { value, text: value })));
 
         const intervalInput = el("input", {
-          type: "number", min: "100", step: "100", value: String(state.intervalMs), style: "width:96px",
+          type: "number", min: "50", step: "50", value: String(state.intervalMs), style: "width:80px",
+          title: t.interval,
           onchange: (event) => {
-            state.intervalMs = Math.max(100, Number(event.target.value) || 1000);
+            state.intervalMs = Math.max(50, Number(event.target.value) || 1000);
             event.target.value = String(state.intervalMs);
+            sSr.set(String(state.intervalMs));
             if (state.timer) restartPolling();
           }
         });
 
-        const pollButton = el("button", { text: t.poll, onclick: () => togglePolling() });
+        const pollButton = el("button", { class: "primary", text: t.poll, onclick: () => togglePolling() });
 
-        const column = el("div", { class: "column" });
-        column.appendChild(el("div", { class: "toolbar" }, [
-          el("button", { text: t.addRow, onclick: () => { state.rows.push(blankRow()); persist(); render(); } }),
-          el("button", { text: t.readNow, onclick: () => readAll() }),
-          pollButton,
-          el("span", { class: "spacer" }),
-          el("span", { text: t.interval }), intervalInput
+        document.querySelector("#appbar-extra").appendChild(el("span", { class: "field" }, [
+          el("span", { text: t.format }), formatSelect
         ]));
-        column.appendChild(el("div", { class: "scroll" }, [table]));
-        root.appendChild(column);
+
+        // ---- request table ------------------------------------------------
+        const requestBody = el("tbody");
+        const requestTable = el("table", { class: "request-table" }, [
+          el("thead", {}, [el("tr", {}, [
+            el("th", { text: t.alias }), el("th", { text: t.area }), el("th", { text: t.address }),
+            el("th", { text: t.quantity }), el("th", { text: t.dataType }), el("th", { text: t.byteOrder }),
+            el("th", { text: t.unit }), el("th", { text: t.status }), el("th", { text: "" })
+          ])])
+        , requestBody]);
+
+        // ---- register grid ------------------------------------------------
+        const grid = el("div", { class: "grid" });
+
+        // The request table is the definition editor, so it gets the wider half;
+        // the value grid adapts to whatever remains.
+        const requestColumn = el("div", { class: "column", style: "flex:0 0 58%" }, [
+          el("div", { class: "pane-head" }, [
+            el("span", { text: t.modbus }),
+            el("span", { class: "count", id: "request-count" })
+          ]),
+          el("div", { class: "toolbar" }, [
+            el("button", { text: t.addRow, onclick: () => { state.rows.push(blankRow()); persist(); renderRequests(); renderGrid(); } }),
+            pollButton,
+            el("button", { text: t.readOnce, onclick: () => readAll() }),
+            el("span", { class: "spacer" }),
+            strip
+          ]),
+          el("div", { class: "scroll" }, [requestTable])
+        ]);
+
+        const valueColumn = el("div", { class: "column" }, [
+          el("div", { class: "pane-head" }, [
+            el("span", { text: t.value }),
+            el("span", { class: "count", id: "grid-count" })
+          ]),
+          el("div", { class: "toolbar" }, [
+            el("span", { class: "field" }, [el("span", { text: t.interval }), intervalInput])
+          ]),
+          el("div", { class: "scroll" }, [grid]),
+          el("div", { class: "hint", text: t.writeHint })
+        ]);
+
+        root.appendChild(requestColumn);
+        root.appendChild(createSplitter(root, requestColumn, valueColumn));
+        root.appendChild(valueColumn);
 
         function blankRow() {
           return {
             id: Math.random().toString(36).slice(2, 10),
             name: "", area: "holding", address: 0, quantity: "",
-            dataType: "uint16", byteOrder: "default", unitId: "",
-            value: null, registers: null, error: null
+            dataType: "uint16", byteOrder: "default", unitId: ""
           };
         }
 
         function persist() {
-          if (!hasStorage()) return;
-          const rows = persistable(state.rows, ["id", "name", "area", "address", "quantity", "dataType", "byteOrder", "unitId"]);
-          host.storage.set(storageKey, rows).catch(() => {});
+          writeStorage(storageKey, persistable(state.rows, ["id", "name", "area", "address", "quantity", "dataType", "byteOrder", "unitId"]));
         }
 
-        function render() {
-          tbody.textContent = "";
+        // ---- request table rendering --------------------------------------
+        function renderRequests() {
+          requestBody.textContent = "";
           if (!state.rows.length) {
-            tbody.appendChild(el("tr", {}, [el("td", { colspan: "11" }, [el("div", { class: "empty", text: t.emptyRows })])]));
+            requestBody.appendChild(el("tr", {}, [el("td", { colspan: "9" }, [el("div", { class: "empty", text: t.emptyRows })])]));
             return;
           }
-          state.rows.forEach((row) => tbody.appendChild(renderRow(row)));
-        }
-
-        function renderRow(row) {
-          const tr = el("tr", { class: row.error ? "error" : "" });
-          const bind = (key, node, transform) => node.addEventListener("change", () => {
-            row[key] = transform ? transform(node.value) : node.value;
-            persist();
-          });
-          const textInput = (key, width) => {
-            const input = el("input", { type: "text", value: row[key], style: width ? `width:${width}` : null });
-            bind(key, input, (value) => value.trim());
-            return input;
-          };
-          const numberInput = (key, min, max, width) => {
-            const input = el("input", {
-              type: "number", min: String(min), max: String(max), style: width ? `width:${width}` : null,
-              value: row[key] === "" || row[key] === null ? "" : String(row[key])
+          state.rows.forEach((row, index) => {
+            const selected = state.request === row;
+            const tr = el("tr", { class: selected ? "selected" : "" });
+            tr.addEventListener("click", (event) => {
+              if (event.target.closest("input,select,button")) return;
+              state.request = row;
+              renderRequests();
+              renderGrid();
             });
-            bind(key, input, (value) => (value === "" ? "" : Math.max(min, Math.min(max, Number(value) || min))));
-            return input;
-          };
-          const selectInput = (key, values, labelFor) => {
-            const select = el("select", {}, values.map((value) => el("option", {
-              value, text: labelFor ? labelFor(value) : value,
-              selected: row[key] === value ? "selected" : null
-            })));
-            bind(key, select);
-            return select;
-          };
 
-          tr.appendChild(el("td", {}, [textInput("name", "110px")]));
-          tr.appendChild(el("td", {}, [selectInput("area", AREAS.map((entry) => entry[0]), (value) => AREAS.find((entry) => entry[0] === value)[1])]));
-          tr.appendChild(el("td", {}, [numberInput("address", 0, 65535)]));
-          tr.appendChild(el("td", {}, [numberInput("quantity", 1, 2000)]));
-          tr.appendChild(el("td", {}, [selectInput("dataType", DATA_TYPES)]));
-          tr.appendChild(el("td", {}, [selectInput("byteOrder", BYTE_ORDERS, (value) => (value === "default" ? t.preset : value))]));
-          tr.appendChild(el("td", {}, [numberInput("unitId", 0, 255)]));
-          tr.appendChild(el("td", { class: "value", text: formatValue(row.value) }));
-          tr.appendChild(el("td", { class: "value", text: row.registers ? row.registers.join(" ") : "" }));
-          tr.appendChild(el("td", { class: row.error ? "bad" : "", text: row.error || "" }));
-          tr.appendChild(el("td", {}, [
-            el("button", { class: "primary", text: t.write, onclick: () => writeRow(row) }),
-            el("button", { class: "ghost danger", text: "×", title: t.remove, onclick: () => {
-              state.rows = state.rows.filter((entry) => entry !== row);
+            const bind = (key, node, transform) => node.addEventListener("change", () => {
+              row[key] = transform ? transform(node.value) : node.value;
               persist();
-              render();
-            } })
-          ]));
-          return tr;
+              if (key === "area" || key === "address" || key === "quantity") {
+                state.scanned = 0;
+                updateStrip();
+              }
+            });
+            const textInput = (key, width) => {
+              const input = el("input", { type: "text", value: row[key], style: width ? `width:${width}` : null });
+              bind(key, input, (value) => value.trim());
+              return input;
+            };
+            const numberInput = (key, min, max, width) => {
+              const input = el("input", {
+                type: "number", min: String(min), max: String(max), style: width ? `width:${width}` : null,
+                value: row[key] === "" || row[key] === null ? "" : String(row[key])
+              });
+              bind(key, input, (value) => (value === "" ? "" : Math.max(min, Math.min(max, Number(value) || min))));
+              return input;
+            };
+            const selectInput = (key, values, labelFor) => {
+              const select = el("select", {}, values.map((value) => el("option", {
+                value, text: labelFor ? labelFor(value) : value,
+                selected: row[key] === value ? "selected" : null
+              })));
+              bind(key, select);
+              return select;
+            };
+
+            // The alias column doubles as the row label in the value grid.
+            tr.appendChild(el("td", {}, [textInput("name", "104px")]));
+            tr.appendChild(el("td", {}, [selectInput("area", AREAS.map((entry) => entry[0]), (value) => AREAS.find((entry) => entry[0] === value)[1])]));
+            tr.appendChild(el("td", {}, [numberInput("address", 0, 65535)]));
+            tr.appendChild(el("td", {}, [numberInput("quantity", 1, 125)]));
+            tr.appendChild(el("td", {}, [selectInput("dataType", DATA_TYPES)]));
+            tr.appendChild(el("td", {}, [selectInput("byteOrder", BYTE_ORDERS, (value) => (value === "default" ? t.preset : value))]));
+            tr.appendChild(el("td", {}, [numberInput("unitId", 0, 255)]));
+
+            const result = row.result;
+            const statusCell = el("td", {});
+            if (!result) {
+              statusCell.appendChild(el("span", { class: "hint-inline", style: "color:var(--industrial-muted)", text: "—" }));
+            } else if (result.ok) {
+              statusCell.appendChild(el("span", { class: "good", text: "OK" }));
+            } else {
+              statusCell.appendChild(el("span", { class: "bad", text: result.error || "error", title: result.error || "" }));
+            }
+            tr.appendChild(statusCell);
+
+            tr.appendChild(el("td", {}, [
+              el("button", { class: "ghost danger", text: "✕", title: t.remove, onclick: () => {
+                state.rows = state.rows.filter((entry) => entry !== row);
+                if (state.request === row) state.request = state.rows[0] || null;
+                persist();
+                renderRequests();
+                renderGrid();
+              } })
+            ]));
+            requestBody.appendChild(tr);
+          });
         }
 
+        // ---- register grid rendering --------------------------------------
+        /** Flattens every request into individual addressable cells. */
+        function expandCells() {
+          const cells = [];
+          for (const row of state.rows) {
+            const result = row.result;
+            // One cell per address in the request: one bit for the bit areas, one
+            // 16-bit register otherwise.
+            const count = Math.max(1, Number(row.quantity) || 1);
+            const start = Number(row.address) || 0;
+            for (let offset = 0; offset < count; offset += 1) {
+              let value = null;
+              let error = null;
+              if (result && result.ok) {
+                value = isBitArea(row.area) ? (result.values || [])[offset] : (result.registers || [])[offset];
+              } else if (result && !result.ok) {
+                error = result.error;
+              }
+              cells.push({
+                row, address: start + offset, offset, value, error,
+                // The decoded value belongs to the first cell of the span.
+                decoded: offset === 0 && result && result.ok && !isBitArea(row.area) ? result.value : undefined,
+                alias: row.name || "",
+                unitId: row.unitId,
+                area: row.area,
+                bit: isBitArea(row.area)
+              });
+            }
+          }
+          return cells;
+        }
+
+        function renderGrid() {
+          grid.textContent = "";
+          const cells = expandCells();
+          const countNode = document.getElementById("grid-count");
+          if (countNode) countNode.textContent = cells.length ? `${cells.length}` : "";
+          if (!state.request && state.rows.length) state.request = state.rows[0];
+
+          if (!cells.length) {
+            grid.appendChild(el("div", { class: "empty", style: "grid-column:1/-1", text: t.emptyGrid }));
+            return;
+          }
+          for (const cell of cells) grid.appendChild(renderCell(cell));
+        }
+
+        function renderCell(cell) {
+          const node = el("div", { class: "cell" + (cell.error ? " err" : ""), title: buildCellTitle(cell) });
+          node.appendChild(el("span", { class: "addr", text: formatAddress(cell.address) }));
+          node.appendChild(el("span", { class: "eq", text: "=" }));
+          const valueText = cell.error
+            ? shortError(cell.error)
+            : cell.bit
+              ? (cell.value === undefined || cell.value === null ? "—" : (cell.value ? "1" : "0"))
+              : formatRegister(cell.value, state.format);
+          node.appendChild(el("span", { class: "v" + (cell.error ? " bad" : ""), text: valueText }));
+
+          // Writing happens only on areas that accept it; the same restriction
+          // is enforced by the backend, and the cursor makes it visible early.
+          const writable = cell.area === "coil" || cell.area === "holding";
+          if (writable && !cell.error) {
+            node.addEventListener("dblclick", () => writeCell(cell));
+          } else {
+            node.style.cursor = "default";
+          }
+          return node;
+        }
+
+        /** Keeps a failing cell one line wide; the tooltip carries the detail. */
+        function shortError(message) {
+          const text = String(message || "error");
+          return text.length > 16 ? text.slice(0, 14) + "…" : text;
+        }
+
+        function buildCellTitle(cell) {
+          const parts = [cell.area, `@ ${cell.address}`];
+          if (cell.alias) parts.unshift(cell.alias);
+          if (cell.decoded !== undefined) parts.push(`decoded ${formatValue(cell.decoded)}`);
+          if (cell.error) parts.push(cell.error);
+          else if (cell.area === "coil" || cell.area === "holding") parts.push("(double-click to write)");
+          return parts.join(" · ");
+        }
+
+        // Slot numbers are 1-based per area, matching how PLC addresses printed
+        // as 4xxxx / 0xxxx map onto protocol addresses.
+        function formatAddress(address) {
+          return String(address).padStart(5, "0");
+        }
+
+        // ---- reading -------------------------------------------------------
         function toTasks() {
           return state.rows.map((row) => {
             const task = { area: row.area, address: Number(row.address) || 0 };
@@ -399,58 +865,86 @@
           });
         }
 
+        function updateStrip() {
+          const row = state.request;
+          sId.set(row ? String(row.unitId === "" || row.unitId === null ? t.preset : row.unitId) : "—");
+          sF.set(row ? functionCode(row.area, false) : "—");
+          sTx.set(String(state.tx));
+          sErr.set(String(state.err), state.err ? "bad" : null);
+          sSr.set(String(state.intervalMs));
+        }
+
         async function readAll() {
           if (state.busy || !state.rows.length) return;
           state.busy = true;
           try {
             const response = await invoke("modbus/read", { connectionId, tasks: toTasks() }, 20000);
-            (response.results || []).forEach((result, index) => {
+            const results = response.results || [];
+            state.tx += 1;
+            let failures = 0;
+            results.forEach((result, index) => {
               const row = state.rows[index];
               if (!row) return;
-              if (result.ok) {
-                row.error = null;
-                row.value = result.value !== undefined ? result.value : result.values;
-                row.registers = result.registers || (Array.isArray(result.values) ? result.values : null);
-              } else {
-                row.error = result.error;
-                row.value = null;
-                row.registers = null;
-              }
+              row.result = result;
+              if (result.ok === false) failures += 1;
             });
-            render();
-            const failures = (response.results || []).filter((result) => result.ok === false);
-            if (failures.length) toast(`${failures.length}/${response.results.length} failed: ${failures[0].error}`, "error");
+            state.err += failures;
+            state.lastResult = { at: new Date(), failures, total: results.length };
+            updateStrip();
+            renderRequests();
+            renderGrid();
+            if (failures) {
+              const first = results.find((result) => result.ok === false);
+              toast(`${failures}/${results.length} failed: ${first && first.error}`, "error");
+            }
           } catch (error) {
-            toast(String(error && error.message ? error.message : error), "error");
+            state.tx += 1;
+            state.err += 1;
+            updateStrip();
+            toast(errorText(error), "error");
           } finally {
             state.busy = false;
           }
         }
 
-        async function writeRow(row) {
-          const isCoil = row.area === "coil";
+        // ---- writing -------------------------------------------------------
+        async function writeCell(cell) {
+          const isCoil = cell.bit;
+          const current = isCoil
+            ? (cell.value ? "true" : "false")
+            : formatRegister(cell.value, "unsigned");
           const field = el("input", {
-            type: isCoil ? "text" : "number",
-            placeholder: isCoil ? "true / false" : "value",
-            value: isCoil ? "true" : "",
-            style: "min-width:160px"
+            type: "text",
+            value: cell.value === undefined || cell.value === null ? "" : current,
+            placeholder: isCoil ? "true / false" : cell.row.dataType,
+            style: "min-width:170px"
           });
+          const payload = [
+            cell.alias || cell.area,
+            `@ ${cell.address}`,
+            `unit ${cell.unitId === "" || cell.unitId === null ? t.preset : cell.unitId}`,
+            isCoil ? "" : cell.row.dataType
+          ].filter(Boolean).join(" · ");
+
           const confirmed = await confirmDialog({
-            title: t.confirmWrite,
+            title: isCoil ? t.writeTitleCoil : t.writeTitleRegister,
             body: t.confirmWriteBody,
-            payload: `${row.area} @ ${row.address}${row.unitId === "" ? "" : ` · unit ${row.unitId}`}${isCoil ? "" : ` · ${row.dataType}`}`,
-            field, confirmLabel: t.confirm
+            payload,
+            field,
+            label: t.value,
+            confirmLabel: t.confirm
           });
           if (confirmed === null) return;
 
           try {
-            const entry = { area: row.area, address: Number(row.address) || 0 };
-            if (row.unitId !== "" && row.unitId !== null) entry.unitId = Number(row.unitId);
+            const entry = { area: cell.area, address: cell.address };
+            if (cell.unitId !== "" && cell.unitId !== null) entry.unitId = Number(cell.unitId);
             if (isCoil) {
-              entry.value = String(field.value).trim().toLowerCase() !== "false";
+              const text = String(field.value).trim().toLowerCase();
+              entry.value = !(text === "false" || text === "0");
             } else {
-              entry.dataType = row.dataType;
-              if (row.byteOrder !== "default") entry.byteOrder = row.byteOrder;
+              entry.dataType = cell.row.dataType;
+              if (cell.row.byteOrder !== "default") entry.byteOrder = cell.row.byteOrder;
               entry.value = Number(field.value);
               if (Number.isNaN(entry.value)) {
                 toast(`"${field.value}" is not a number`, "error");
@@ -459,26 +953,32 @@
             }
             const response = await invoke("modbus/write", { connectionId, writes: [entry] }, 20000);
             const result = (response.results || [])[0];
+            state.tx += 1;
             if (result && result.ok) {
-              toast(`Wrote ${row.area} @ ${row.address}`);
+              toast(`${cell.area} @ ${cell.address} ← ${field.value}`, "info");
               readAll();
             } else {
+              state.err += 1;
+              updateStrip();
               toast((result && result.error) || "Write failed", "error");
             }
           } catch (error) {
-            toast(String(error && error.message ? error.message : error), "error");
+            toast(errorText(error), "error");
           }
         }
 
+        // ---- polling -------------------------------------------------------
         function togglePolling() {
           if (state.timer) {
             clearInterval(state.timer);
             state.timer = null;
             pollButton.textContent = t.poll;
+            pollButton.setAttribute("aria-pressed", "false");
             return;
           }
           state.timer = setInterval(readAll, state.intervalMs);
           pollButton.textContent = t.stop;
+          pollButton.setAttribute("aria-pressed", "true");
           readAll();
         }
 
@@ -487,17 +987,17 @@
           state.timer = setInterval(readAll, state.intervalMs);
         }
 
+        // ---- boot ----------------------------------------------------------
         (async () => {
-          if (hasStorage()) {
-            try {
-              const saved = await host.storage.get(storageKey);
-              if (Array.isArray(saved) && saved.length) {
-                state.rows = saved.map((row) => ({ ...blankRow(), ...row, value: null, registers: null, error: null }));
-              }
-            } catch { /* ignore unreadable state */ }
+          const saved = await readStorage(storageKey);
+          if (Array.isArray(saved) && saved.length) {
+            state.rows = saved.map((row) => ({ ...blankRow(), ...row }));
           }
           if (!state.rows.length) state.rows.push(blankRow());
-          render();
+          state.request = state.rows[0];
+          updateStrip();
+          renderRequests();
+          renderGrid();
           readAll();
         })();
 
@@ -505,24 +1005,50 @@
       }
 
       // ---------------------------------------------------------------------
-      // OPC UA workbench
+      // OPC UA workbench  (UaExpert layout)
       // ---------------------------------------------------------------------
+      const NAMESPACE_ROOT = "i=84"; // Root folder: Objects / Types / Views
+
+      /** Two-letter glyph colour-coded per node class, standing in for icons. */
+      function classGlyph(nodeClass) {
+        const name = String(nodeClass || "");
+        if (name.startsWith("Object")) return ["O", "object"];
+        if (name.startsWith("Variable")) return ["V", "variable"];
+        if (name.startsWith("Method")) return ["M", "method"];
+        if (name.startsWith("View")) return ["W", "view"];
+        if (name.includes("Type")) return ["T", "type"];
+        return ["·", ""];
+      }
+
       function createOpcuaWorkbench(root) {
         const storageKey = storageKeyFor("opcua.nodes");
-        const state = { nodes: [], subscriptionId: null, intervalMs: 1000, busy: false };
+        const state = {
+          nodes: [], subscriptionId: null, intervalMs: 1000, busy: false,
+          selected: null, selectedAttributes: null, namespaces: [], highlight: ""
+        };
         const childrenCache = new Map();
+        const treeRows = new Map();
 
+        // ---- address space pane -------------------------------------------
         const tree = el("div", { class: "tree" });
-        const tbody = el("tbody");
-        const table = el("table", {}, [
+        const namespaceSelect = el("select", {
+          title: t.namespace,
+          onchange: (event) => { state.highlight = event.target.value; applyHighlight(); }
+        });
+        const rebrowseButton = el("button", { class: "icon", text: "⟳", title: t.refresh, onclick: () => { childrenCache.clear(); loadRoot(); } });
+
+        // ---- data access view ---------------------------------------------
+        const watchBody = el("tbody");
+        const watchTable = el("table", {}, [
           el("thead", {}, [el("tr", {}, [
-            el("th", { text: t.nodeId }), el("th", { text: t.value }), el("th", { text: t.dataType }),
-            el("th", { text: t.status }), el("th", { text: "" })
+            el("th", { text: t.nodeId }), el("th", { text: t.value }),
+            el("th", { text: t.dataType }), el("th", { text: t.timestamp }),
+            el("th", { text: t.quality }), el("th", { text: "" })
           ])])
-        , tbody]);
+        , watchBody]);
 
         const nodeInput = el("input", {
-          type: "text", placeholder: "ns=3;s=Temperature", style: "min-width:220px",
+          type: "text", placeholder: "ns=3;s=Temperature", style: "min-width:200px;flex:1",
           title: t.addNodeHint,
           onkeydown: (event) => {
             if (event.key !== "Enter") return;
@@ -533,130 +1059,243 @@
           }
         });
 
-        root.appendChild(el("div", { class: "column" }, [
-          el("div", { class: "column-head" }, [el("span", { text: t.browse })]),
+        // ---- attributes pane ----------------------------------------------
+        const attrs = el("div", { class: "attrs" });
+
+        const browseColumn = el("div", { class: "column", style: "flex:0 0 27%" }, [
+          el("div", { class: "pane-head" }, [el("span", { text: t.browse }), el("span", { class: "spacer" }), rebrowseButton]),
+          el("div", { class: "toolbar" }, [
+            el("span", { class: "field" }, [el("span", { text: t.namespace }), namespaceSelect])
+          ]),
           el("div", { class: "scroll" }, [tree]),
           el("div", { class: "hint", text: t.browseHint })
-        ]));
-        root.appendChild(el("div", { class: "column" }, [
-          el("div", { class: "column-head" }, [el("span", { text: t.selected })]),
+        ]);
+
+        const watchColumn = el("div", { class: "column", style: "flex:1 1 auto" }, [
+          el("div", { class: "pane-head" }, [el("span", { text: t.watch }), el("span", { class: "count", id: "watch-count" })]),
           el("div", { class: "toolbar" }, [
             nodeInput,
             el("button", { text: t.readOnce, onclick: () => readAll() }),
             el("button", { class: "primary", text: t.subscribe, onclick: () => subscribe() }),
             el("button", { text: t.unsubscribe, onclick: () => unsubscribe() })
           ]),
-          el("div", { class: "scroll" }, [table])
-        ]));
+          el("div", { class: "scroll" }, [watchTable])
+        ]);
+
+        const attrColumn = el("div", { class: "column", style: "flex:0 0 24%" }, [
+          el("div", { class: "pane-head" }, [el("span", { text: t.attributes })]),
+          el("div", { class: "scroll" }, [attrs]),
+          el("div", { class: "hint", text: t.attrHint })
+        ]);
+
+        root.appendChild(browseColumn);
+        root.appendChild(createSplitter(root, browseColumn, watchColumn));
+        root.appendChild(watchColumn);
+        root.appendChild(createSplitter(root, watchColumn, attrColumn));
+        root.appendChild(attrColumn);
 
         function persist() {
-          if (!hasStorage()) return;
-          const nodes = persistable(state.nodes, ["nodeId", "label"]);
-          host.storage.set(storageKey, nodes).catch(() => {});
+          writeStorage(storageKey, persistable(state.nodes, ["nodeId", "label"]));
         }
 
-        function renderNodes() {
-          tbody.textContent = "";
+        // ---- watch list ----------------------------------------------------
+        function renderWatch() {
+          watchBody.textContent = "";
+          const countNode = document.getElementById("watch-count");
+          if (countNode) countNode.textContent = state.nodes.length ? `${state.nodes.length}` : "";
           if (!state.nodes.length) {
-            tbody.appendChild(el("tr", {}, [el("td", { colspan: "5" }, [el("div", { class: "empty", text: t.emptyNodes })])]));
+            watchBody.appendChild(el("tr", {}, [el("td", { colspan: "6" }, [el("div", { class: "empty", text: t.emptyNodes })])]));
             return;
           }
           for (const node of state.nodes) {
-            const tr = el("tr", { class: node.status && !node.good ? "error" : "" });
-            tr.appendChild(el("td", { class: "value", text: node.nodeId }));
-            tr.appendChild(el("td", { class: "value", text: formatValue(node.value) }));
+            const bad = node.status !== undefined && node.status !== "" && !node.good;
+            const tr = el("tr", { class: bad ? "error" : "" });
+            tr.appendChild(el("td", { class: "mono", text: node.nodeId, title: node.nodeId }));
+            tr.appendChild(el("td", { class: "mono" }, [
+              el("span", { class: "cell-value", title: t.confirmWriteBody, onclick: () => writeNode(node), text: formatValue(node.value) })
+            ]));
             tr.appendChild(el("td", { text: node.dataType || "" }));
-            tr.appendChild(el("td", { class: node.good ? "good" : (node.status ? "bad" : ""), text: node.status || "" }));
+            tr.appendChild(el("td", { class: "registers", text: node.sourceTimestamp ? shortTime(node.sourceTimestamp) : "" }));
+            tr.appendChild(el("td", { class: node.good ? "good" : (bad ? "bad" : ""), text: node.status || (node.good ? "Good" : "") }));
             tr.appendChild(el("td", {}, [
-              el("button", { class: "ghost", text: t.write, onclick: () => writeNode(node) }),
-              el("button", { class: "ghost danger", text: "×", title: t.remove, onclick: () => {
+              el("button", { class: "ghost danger", text: "✕", title: t.remove, onclick: () => {
                 state.nodes = state.nodes.filter((entry) => entry !== node);
                 persist();
-                renderNodes();
+                renderWatch();
               } })
             ]));
-            tbody.appendChild(tr);
+            watchBody.appendChild(tr);
           }
+        }
+
+        function shortTime(value) {
+          const text = String(value);
+          const match = text.match(/T(\d{2}:\d{2}:\d{2})/);
+          return match ? match[1] : text;
         }
 
         function addNode(nodeId, label) {
           if (!nodeId || state.nodes.some((node) => node.nodeId === nodeId)) return;
           state.nodes.push({ nodeId, label: label || "", value: null, dataType: "", status: "", good: false });
           persist();
-          renderNodes();
+          renderWatch();
           readAll();
         }
 
+        // ---- address space -------------------------------------------------
         async function browseChildren(nodeId) {
           const response = await invoke("opcua/browse", { connectionId, nodeId, direction: "forward", maxReferences: 1000 }, 30000);
           return response.references || [];
         }
 
-        function renderTreeRow(container, nodeId, label, nodeClass, depth) {
-          const row = el("div", { class: "tree-row", style: `padding-left:${depth * 12 + 4}px`, title: nodeId });
+        function renderTreeRow(container, reference, depth) {
+          const nodeId = reference.nodeId;
+          const label = reference.displayName || reference.browseName;
+          const row = el("div", {
+            class: "tree-row", style: `padding-left:${depth * 13 + 3}px`, title: nodeId
+          });
           const twisty = el("span", { class: "twisty", text: "▸" });
+          const [glyph, glyphClass] = classGlyph(reference.nodeClass);
           row.appendChild(twisty);
-          row.appendChild(el("span", { text: label }));
-          if (nodeClass) row.appendChild(el("span", { class: "node-class", text: ` ${nodeClass}` }));
+          row.appendChild(el("span", { class: "nclass " + glyphClass, text: glyph }));
+          row.appendChild(el("span", { class: "name", text: label }));
           container.appendChild(row);
 
-          const childrenBox = el("div");
+          const childrenBox = el("div", { style: "display:none" });
           container.appendChild(childrenBox);
+          treeRows.set(nodeId, row);
 
-          row.addEventListener("click", async () => {
-            if (childrenCache.has(nodeId)) {
-              const open = childrenBox.style.display !== "none";
-              childrenBox.style.display = open ? "none" : "";
-              twisty.textContent = open ? "▸" : "▾";
+          let loaded = false;
+          let open = false;
+          const toggle = async () => {
+            if (open) {
+              open = false;
+              childrenBox.style.display = "none";
+              twisty.textContent = "▸";
               return;
             }
-            twisty.textContent = "…";
-            try {
-              const references = await browseChildren(nodeId);
-              childrenCache.set(nodeId, references);
-              childrenBox.textContent = "";
-              if (!references.length) {
-                childrenBox.appendChild(el("div", {
-                  class: "node-class", style: `padding-left:${(depth + 1) * 12 + 18}px`, text: t.noChildren
-                }));
+            if (!loaded) {
+              twisty.textContent = "…";
+              try {
+                const references = childrenCache.has(nodeId) ? childrenCache.get(nodeId) : await browseChildren(nodeId);
+                childrenCache.set(nodeId, references);
+                childrenBox.textContent = "";
+                if (!references.length) {
+                  childrenBox.appendChild(el("div", {
+                    class: "node-class", style: `padding-left:${(depth + 1) * 13 + 18}px;color:var(--industrial-muted)`,
+                    text: t.noChildren
+                  }));
+                }
+                for (const reference of references) renderTreeRow(childrenBox, reference, depth + 1);
+                loaded = true;
+                // Newly revealed children can introduce namespaces the picker
+                // has not seen yet.
+                collectNamespaces();
+                applyHighlight();
+              } catch (error) {
+                twisty.textContent = "▸";
+                toast(errorText(error), "error");
+                return;
               }
-              for (const reference of references) {
-                renderTreeRow(childrenBox, reference.nodeId, reference.displayName || reference.browseName, reference.nodeClass, depth + 1);
-              }
-              twisty.textContent = "▾";
-            } catch (error) {
-              twisty.textContent = "▸";
-              toast(String(error && error.message ? error.message : error), "error");
             }
-          });
+            open = true;
+            childrenBox.style.display = "";
+            twisty.textContent = "▾";
+          };
 
-          row.addEventListener("dblclick", (event) => {
-            event.stopPropagation();
-            addNode(nodeId, label);
-          });
-          row.addEventListener("contextmenu", (event) => {
-            event.preventDefault();
-            addNode(nodeId, label);
-          });
+          row.addEventListener("click", () => { selectNode(nodeId); toggle(); });
+          row.addEventListener("dblclick", (event) => { event.stopPropagation(); addNode(nodeId, label); });
+          row.addEventListener("contextmenu", (event) => { event.preventDefault(); addNode(nodeId, label); });
+        }
+
+        // UaExpert highlights one namespace at a time instead of hiding the
+        // rest, which keeps the tree shape stable while drawing the eye.
+        function applyHighlight() {
+          for (const [nodeId, row] of treeRows) {
+            if (!state.highlight) { row.classList.remove("dim", "highlight"); continue; }
+            const namespace = namespaceOf(nodeId);
+            row.classList.toggle("highlight", namespace === state.highlight);
+            row.classList.toggle("dim", namespace !== state.highlight);
+          }
+        }
+
+        function namespaceOf(nodeId) {
+          const match = String(nodeId).match(/ns=(\d+)/);
+          return match ? match[1] : "0";
+        }
+
+        function collectNamespaces() {
+          const found = new Set();
+          for (const nodeId of treeRows.keys()) found.add(namespaceOf(nodeId));
+          for (const node of state.nodes) found.add(namespaceOf(node.nodeId));
+          state.namespaces = [...found].sort((a, b) => Number(a) - Number(b));
+          namespaceSelect.textContent = "";
+          namespaceSelect.appendChild(el("option", { value: "", text: t.allNamespaces }));
+          for (const index of state.namespaces) {
+            namespaceSelect.appendChild(el("option", { value: index, text: `ns=${index}`, selected: state.highlight === index ? "selected" : null }));
+          }
         }
 
         async function loadRoot() {
           tree.textContent = "";
+          treeRows.clear();
           tree.appendChild(el("div", { class: "hint", text: t.loading }));
           try {
-            // i=84 is the Root folder; its children are Objects, Types and Views.
-            const roots = await browseChildren("i=84");
+            const roots = await browseChildren(NAMESPACE_ROOT);
             tree.textContent = "";
-            for (const reference of roots) {
-              renderTreeRow(tree, reference.nodeId, reference.displayName || reference.browseName, reference.nodeClass, 0);
-            }
+            for (const reference of roots) renderTreeRow(tree, reference, 0);
             if (!roots.length) tree.appendChild(el("div", { class: "hint", text: t.noChildren }));
+            collectNamespaces();
+            applyHighlight();
           } catch (error) {
             tree.textContent = "";
-            tree.appendChild(el("div", { class: "hint", text: String(error && error.message ? error.message : error) }));
+            tree.appendChild(el("div", { class: "hint", text: errorText(error) }));
           }
         }
 
+        // ---- attributes pane -----------------------------------------------
+        function renderAttributes() {
+          attrs.textContent = "";
+          if (!state.selected) {
+            attrs.appendChild(el("div", { class: "empty", text: t.attrHint }));
+            return;
+          }
+          const rows = [
+            ["Node id", state.selected],
+            ...(state.selectedAttributes || [])
+          ];
+          for (const [key, value] of rows) {
+            attrs.appendChild(el("div", { class: "attr" }, [
+              el("span", { class: "k", text: key }),
+              el("span", { class: "v", text: value })
+            ]));
+          }
+        }
+
+        // Reading a node reuses the normal read path so the pane shows exactly
+        // what the device reports, not a cached copy.
+        async function selectNode(nodeId) {
+          state.selected = nodeId;
+          state.selectedAttributes = null;
+          for (const [id, row] of treeRows) row.classList.toggle("selected", id === nodeId);
+          renderAttributes();
+          try {
+            const response = await invoke("opcua/read", { connectionId, nodeIds: [nodeId] }, 30000);
+            const first = (response.results || [])[0] || {};
+            state.selectedAttributes = [
+              ["Value", formatValue(first.value)],
+              ["Data type", first.dataType || ""],
+              ["Quality", first.status || ""],
+              ["Source ts", first.sourceTimestamp || ""],
+              ["Server ts", first.serverTimestamp || ""]
+            ];
+          } catch (error) {
+            state.selectedAttributes = [["Error", errorText(error)]];
+          }
+          renderAttributes();
+        }
+
+        // ---- reading --------------------------------------------------------
         async function readAll() {
           if (state.busy || !state.nodes.length) return;
           state.busy = true;
@@ -671,12 +1310,13 @@
               node.dataType = result.dataType;
               node.status = result.status;
               node.good = result.good;
+              node.sourceTimestamp = result.sourceTimestamp;
             });
-            renderNodes();
+            renderWatch();
             const bad = (response.results || []).filter((result) => result.good === false);
             if (bad.length) toast(`${bad.length}/${state.nodes.length} nodes are not good quality`, "error");
           } catch (error) {
-            toast(String(error && error.message ? error.message : error), "error");
+            toast(errorText(error), "error");
           } finally {
             state.busy = false;
           }
@@ -690,9 +1330,9 @@
               connectionId, nodeIds: state.nodes.map((node) => node.nodeId), intervalMs: state.intervalMs
             }, 30000);
             state.subscriptionId = response.subscriptionId;
-            toast(`Subscribed ${state.nodes.length} node(s) every ${response.intervalMs} ms`);
+            toast(`Subscribed ${state.nodes.length} node(s) every ${response.intervalMs} ms`, "info");
           } catch (error) {
-            toast(String(error && error.message ? error.message : error), "error");
+            toast(errorText(error), "error");
           }
         }
 
@@ -703,24 +1343,24 @@
           try {
             await invoke("opcua/unsubscribe", { connectionId, subscriptionId }, 20000);
           } catch (error) {
-            toast(String(error && error.message ? error.message : error), "error");
+            toast(errorText(error), "error");
           }
         }
 
         async function writeNode(node) {
           const field = el("input", {
-            type: "text", value: formatValue(node.value),
+            type: "text", value: node.value === null || node.value === undefined ? "" : formatValue(node.value),
             placeholder: node.dataType && node.dataType !== "Null" ? node.dataType : "value",
             style: "min-width:180px"
           });
           const confirmed = await confirmDialog({
-            title: t.confirmWrite,
+            title: t.writeTitleNode,
             body: t.confirmWriteBody,
             payload: node.nodeId,
-            field, confirmLabel: t.confirm
+            field, label: t.value,
+            confirmLabel: t.confirm
           });
           if (confirmed === null) return;
-
           try {
             const response = await invoke("opcua/write", {
               connectionId,
@@ -728,17 +1368,17 @@
             }, 30000);
             const result = (response.results || [])[0];
             if (result && result.ok) {
-              toast(`${node.nodeId}: ${result.status}`);
+              toast(`${node.nodeId}: ${result.status}`, "info");
               readAll();
             } else {
               toast((result && result.status) || "Write rejected", "error");
             }
           } catch (error) {
-            toast(String(error && error.message ? error.message : error), "error");
+            toast(errorText(error), "error");
           }
         }
 
-        // Live data changes pushed by the sidecar subscription.
+        // ---- live data changes ---------------------------------------------
         if (host.onEvent) {
           host.onEvent((event) => {
             if (!event || event.method !== "opcua/dataChange") return;
@@ -750,18 +1390,17 @@
             node.dataType = payload.dataType;
             node.status = payload.status;
             node.good = Number(payload.statusCode) === 0;
-            renderNodes();
+            node.sourceTimestamp = payload.sourceTimestamp;
+            renderWatch();
           });
         }
 
+        // ---- boot ----------------------------------------------------------
         (async () => {
-          if (hasStorage()) {
-            try {
-              const saved = await host.storage.get(storageKey);
-              if (Array.isArray(saved)) state.nodes = saved.map((node) => ({ ...node, good: false }));
-            } catch { /* ignore unreadable state */ }
-          }
-          renderNodes();
+          const saved = await readStorage(storageKey);
+          if (Array.isArray(saved)) state.nodes = saved.map((node) => ({ ...node, good: false }));
+          renderWatch();
+          renderAttributes();
           await loadRoot();
           if (state.nodes.length) readAll();
         })();
@@ -787,18 +1426,21 @@
         document.querySelector("#title").textContent = isOpcua ? t.opcua : t.modbus;
         document.title = isOpcua ? t.opcua : t.modbus;
 
-        const badge = document.querySelector("#connection-badge");
+        const conn = document.querySelector("#conn");
+        const connId = document.querySelector("#conn-id");
         connectionId = context.connectionId || context.connection_id || null;
         if (!connectionId) {
-          badge.textContent = t.notConnected;
+          conn.classList.add("dead");
+          connId.textContent = t.notConnected;
           document.querySelector("#main").appendChild(el("div", { class: "empty", text: t.noConnection }));
           return;
         }
-        badge.textContent = connectionId;
-        badge.title = connectionId;
+        conn.classList.add("live");
+        connId.textContent = connectionId;
+        connId.title = connectionId;
 
-        // Both creators append their own flex columns to #main: one column for
-        // Modbus, a browser + watch list pair for OPC UA.
+        // Modbus renders a request table next to a register grid; OPC UA renders
+        // the three UaExpert panes.
         const main = document.querySelector("#main");
         if (isOpcua) createOpcuaWorkbench(main);
         else createModbusWorkbench(main);
@@ -812,7 +1454,7 @@
       });
 
       bootstrap().catch((error) => {
-        toast(String(error && error.message ? error.message : error), "error");
+        toast(errorText(error), "error");
       });
     </script>
   </body>
