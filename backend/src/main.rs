@@ -1144,4 +1144,46 @@ mod tests {
         );
         assert_eq!(text_field(&connection, "password").as_deref(), Some("s3cret"));
     }
+
+    /// The connection form now collects only host, port, slave id and timeout;
+    /// byte and word order are chosen in the workbench. A snapshot carrying just
+    /// those four must still yield a usable session with the classic defaults,
+    /// because the workbench sends the display options with each read instead.
+    #[test]
+    fn a_minimal_connection_falls_back_to_classic_defaults() {
+        let connection = json!({
+            "id": "abc",
+            "db_type": "plugin",
+            "plugin_connection_type": "modbus-tcp",
+            "host": "192.168.1.20",
+            "port": 502,
+            "external_config": { "unit_id": 7, "timeout_ms": 2000 },
+        });
+        let (byte_order, word_order, unit_id) = modbus_defaults(&connection);
+        assert_eq!(byte_order, "ABCD");
+        assert_eq!(word_order, "big");
+        assert_eq!(unit_id, 7);
+
+        // An empty snapshot must be just as safe, because the workbench may be
+        // opened before the connection body has been filled in.
+        let (byte_order, word_order, unit_id) = modbus_defaults(&json!({}));
+        assert_eq!(byte_order, "ABCD");
+        assert_eq!(word_order, "big");
+        assert_eq!(unit_id, 1);
+    }
+
+    /// The display options the workbench sends per read must reach the decoder
+    /// and change what the same two registers decode to.
+    #[test]
+    fn per_read_display_options_reach_the_decoder() {
+        // 0x4200 0x0000 is 32.0 as a big-endian float; word-swapped it is not.
+        let registers = vec![0x4200u16, 0x0000];
+        let big = decode_registers(&registers, "float32", "ABCD", "big").unwrap();
+        let swapped = decode_registers(&registers, "float32", "CDAB", "big").unwrap();
+        assert_eq!(big, 32.0);
+        assert_ne!(big, swapped, "word swap must change the decoded value");
+
+        // The raw registers themselves are never touched by a display option.
+        assert_eq!(registers, vec![0x4200u16, 0x0000]);
+    }
 }

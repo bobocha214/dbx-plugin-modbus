@@ -60,7 +60,7 @@
       }
       .appbar .title { font-weight: 650; font-size: 13px; letter-spacing: .01em; }
       .appbar .sep { width: 1px; align-self: stretch; background: var(--industrial-border); margin: 2px 2px; }
-      .spacer { flex: 1; }
+      .spacer { flex: 1; min-width: 0; }
       .conn {
         display: inline-flex; align-items: center; gap: 6px;
         padding: 2px 9px; border-radius: 999px;
@@ -104,8 +104,12 @@
         outline: 2px solid color-mix(in srgb, var(--color-primary, #2563eb) 60%, transparent);
         outline-offset: -1px;
       }
-      .field { display: inline-flex; align-items: center; gap: 5px; color: var(--industrial-muted); }
+      .field { display: inline-flex; align-items: center; gap: 4px; color: var(--industrial-muted); flex: none; }
       .field > input, .field > select { color: var(--color-foreground, #18181b); }
+      /* A <select> sizes itself to its widest <option> regardless of `width`,
+         which is what pushed the scope bar onto two lines. A flex basis is
+         respected where `width` is not. */
+      .scope-bar select, .scope-bar input { min-width: 0; }
 
       /* A compact readout for the status strip: label above value, as in the
          Tx / Err / ID / F / SR block of Modbus Poll. */
@@ -119,6 +123,9 @@
 
       /* ---------------------------------------------------------------- layout */
       main { flex: 1; min-height: 0; display: flex; }
+      /* The Modbus workbench is a definition strip above stacked panes, so it
+         wants a column; OPC UA keeps the default row of three panes. */
+      main.stack { flex-direction: column; }
       .column { flex: 1; min-width: 0; display: flex; flex-direction: column; }
       /* A draggable divider between panes, so a wide register dump or a long
          node list can be given more room. */
@@ -132,6 +139,27 @@
       }
       .splitter:hover::after, .splitter.dragging::after { opacity: 1; background: var(--color-primary, #2563eb); }
       body.resizing { cursor: col-resize; user-select: none; }
+      /* The scope bar is the workbench's definition row: area, start, quantity
+         and the slave id all live on one line so the whole range being read is
+         visible without scrolling or opening a dialog. */
+      .scope-bar {
+        display: flex; gap: 7px; align-items: center; flex-wrap: wrap;
+        flex: none; row-gap: 6px;
+        padding: 6px 10px; background: var(--industrial-chrome);
+        border-bottom: 1px solid var(--industrial-strong-border);
+      }
+      .scope-bar .sep { width: 1px; align-self: stretch; background: var(--industrial-border); margin: 1px 0; flex: none; }
+      .scope-bar .lbl {
+        font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
+        color: var(--industrial-muted);
+      }
+      /* Display controls sit bare between separators, like Modbus Poll's format
+         row, so the definition controls on the left keep the eye. */
+      .scope-bar > select { flex: none; }
+      /* The action group stays right-aligned and wraps as one unit, so the
+         counters never end up stranded on a line of their own. */
+      .scope-bar .actions { display: flex; align-items: center; gap: 8px; flex: none; }
+      .panes { flex: 1; min-height: 0; display: flex; }
       .pane-head {
         display: flex; align-items: center; gap: 6px;
         padding: 5px 10px; background: var(--industrial-chrome);
@@ -218,6 +246,47 @@
       /* An error is summarised in the cell and spelled out in the tooltip, so a
          long exception name cannot stretch the grid row. */
       .cell.err .v { margin-left: 0; flex: 1; min-width: 0; }
+      /* An energised coil reads as "on", not just "1", without needing colour
+         alone to carry the meaning. */
+      .cell .v.on { color: var(--industrial-good); }
+
+      /* Raw pane: exactly what came off the wire, before any decoding. Having
+         it beside the decoded grid is what makes a byte-order switch legible —
+         the left column does not move, the right one does. */
+      .raw-grid { display: flex; flex-direction: column; gap: 1px; padding: 6px 8px; }
+      .raw-cell {
+        display: flex; align-items: baseline; gap: 8px;
+        padding: 2px 6px; border-radius: 4px; min-width: 0;
+      }
+      .raw-cell:hover { background: var(--industrial-subtle); }
+      .raw-cell .raw-addr { font-family: var(--industrial-mono); font-size: 11px; color: var(--industrial-muted); flex: none; }
+      .raw-cell .raw-v {
+        font-family: var(--industrial-mono); font-variant-numeric: tabular-nums;
+        font-size: 12px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+      }
+      .raw-cell .raw-dec {
+        font-family: var(--industrial-mono); font-variant-numeric: tabular-nums;
+        font-size: 11px; color: var(--industrial-muted); flex: none;
+      }
+
+      /* The decoded value for the whole range, pinned under the grid. */
+      .decoded-row {
+        display: flex; align-items: center; gap: 10px; flex: none;
+        padding: 7px 12px; border-top: 1px solid var(--industrial-border);
+        background: var(--industrial-chrome); min-height: 36px;
+      }
+      .decoded-label {
+        font-size: 10px; text-transform: uppercase; letter-spacing: .06em;
+        color: var(--industrial-muted); flex: none;
+      }
+      .decoded-box { display: flex; align-items: baseline; gap: 12px; min-width: 0; overflow: hidden; }
+      .decoded-value {
+        font-family: var(--industrial-mono); font-variant-numeric: tabular-nums;
+        font-size: 15px; font-weight: 600; color: var(--industrial-value);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .decoded-meta { font-size: 11px; color: var(--industrial-muted); flex: none; }
+      .decoded-empty { font-size: 11.5px; color: var(--industrial-muted); }
 
       /* ------------------------------------------------------------------ tree */
       .tree { padding: 4px 2px; }
@@ -341,7 +410,17 @@
           tx: "Tx", err: "Err", id: "ID", fn: "F", sr: "SR", rows: "Rows",
           quality: "Quality", timestamp: "Timestamp", nodeClass: "Class",
           writeTitleRegister: "Write register", writeTitleCoil: "Write coil", writeTitleNode: "Write node",
-          writeHint: "Double-click a value to write it. Read-only areas are not editable."
+          writeHint: "Double-click a value to write it. Read-only areas are not editable.",
+          start: "Start", quantity: "Quantity", scope: "Range",
+          byteOrder: "Byte order", wordOrder: "Word order",
+          wordBig: "High first", wordLittle: "Low first",
+          displayOnly: "Affects the decoded value only, never the raw registers.",
+          narrowType: "only applies to 64-bit types spanning four registers",
+          emptyScope: "Set a start address and a quantity, then read once or start polling.",
+          reading: "reading…", raw: "Raw registers", decoded: "Decoded",
+          grid: "Registers", scopeHint: "Enter a start address and quantity, pick the area, then duplex.",
+          decodedFor: "Decoded",
+          areaNames: { holding: "Holding", input: "Input", coil: "Coil", discrete: "Discrete" }
         },
         zh: {
           modbus: "Modbus TCP", opcua: "OPC UA",
@@ -368,7 +447,17 @@
           tx: "发送", err: "错误", id: "从站", fn: "功能码", sr: "周期", rows: "行数",
           quality: "质量", timestamp: "时间戳", nodeClass: "类别",
           writeTitleRegister: "写入寄存器", writeTitleCoil: "写入线圈", writeTitleNode: "写入节点",
-          writeHint: "双击数值即可写入；只读区域不可编辑。"
+          writeHint: "双击数值即可写入；只读区域不可编辑。",
+          start: "起始地址", quantity: "数量", scope: "范围",
+          byteOrder: "字节序", wordOrder: "字序",
+          wordBig: "高字在前", wordLittle: "低字在前",
+          displayOnly: "仅影响解析出的数值，不改变读到的原始寄存器。",
+          narrowType: "仅对占用四个寄存器的 64 位类型有效",
+          emptyScope: "设置起始地址与数量，然后单次读取或开始轮询。",
+          reading: "读取中…", raw: "原始寄存器", decoded: "解析值",
+          grid: "寄存器", scopeHint: "填入起始地址与数量、选择区域，然后双击即可写入。",
+          decodedFor: "解析值",
+          areaNames: { holding: "保持寄存器", input: "输入寄存器", coil: "线圈", discrete: "离散输入" }
         }
       };
       let t = COPY.en;
@@ -460,6 +549,70 @@
         }
       }
 
+      // How many 16-bit registers each data type occupies, and how to read the
+      // assembled bytes back out. Mirrors the backend's decoder so a display
+      // option can be applied without another round-trip to the device.
+      const TYPE_LAYOUT = {
+        uint16: ["u", 2], int16: ["i", 2],
+        uint32: ["u", 4], int32: ["i", 4], float32: ["f", 4],
+        uint64: ["u", 8], int64: ["i", 8], float64: ["f", 8]
+      };
+
+      /** How many registers a decoded value spans, or 1 for an unknown type. */
+      function registerCount(dataType) {
+        const layout = TYPE_LAYOUT[dataType];
+        return layout ? layout[1] / 2 : 1;
+      }
+
+      /**
+       * Reassembles registers into a value using the selected byte and word
+       * order. Byte order names the position of each byte of a single 16-bit
+       * register (ABCD/BADC) or swaps whole words (CDAB/DCBA); word order then
+       * orders the words for values wider than 32 bits.
+       */
+      function decodeRegistersClient(registers, dataType, byteOrder, wordOrder) {
+        const layout = TYPE_LAYOUT[dataType];
+        if (!layout || !registers || !registers.length) return undefined;
+        const [kind, byteWidth] = layout;
+        const need = byteWidth / 2;
+        if (registers.length < need) return undefined;
+
+        const words = registers.slice(0, need).map((value) => ((Number(value) % 65536) + 65536) % 65536);
+        // Order the words widest-first, honouring the word order for 64-bit
+        // types and the CDAB/DCBA byte orders which are really word swaps.
+        let ordered = words;
+        if (byteOrder === "CDAB" && need >= 2) {
+          ordered = words.slice().reverse();
+        } else if (byteOrder === "DCBA" && need >= 2) {
+          ordered = words.slice().reverse().map((word) => ((word & 0xff) << 8) | (word >> 8));
+        }
+        if (wordOrder === "little" && need >= 4) ordered = ordered.slice().reverse();
+
+        // Flatten to a byte array, applying the per-register byte order.
+        const bytes = [];
+        for (const word of ordered) {
+          let hi = (word >> 8) & 0xff;
+          let lo = word & 0xff;
+          if (byteOrder === "BADC" || byteOrder === "DCBA") {
+            const swap = hi; hi = lo; lo = swap;
+          }
+          bytes.push(hi, lo);
+        }
+
+        const view = new DataView(new Uint8Array(bytes).buffer);
+        if (kind === "f") {
+          return byteWidth === 4 ? view.getFloat32(0, false) : view.getFloat64(0, false);
+        }
+        if (kind === "i") {
+          if (byteWidth === 2) return view.getInt16(0, false);
+          if (byteWidth === 4) return view.getInt32(0, false);
+          return Number(view.getBigInt64(0, false));
+        }
+        if (byteWidth === 2) return view.getUint16(0, false);
+        if (byteWidth === 4) return view.getUint32(0, false);
+        return Number(view.getBigUint64(0, false));
+      }
+
       function storageKeyFor(kind) {
         return `${kind}.${connectionId || "default"}`;
       }
@@ -479,6 +632,11 @@
           }
           return kept;
         });
+      }
+
+      /** The same whitelist rule for a single object, not a list of them. */
+      function persistableOne(source, definitionKeys) {
+        return persistable([source], definitionKeys)[0];
       }
 
       function readStorage(key) {
@@ -564,15 +722,18 @@
       // ---------------------------------------------------------------------
       // Modbus TCP workbench  (Modbus Poll layout)
       // ---------------------------------------------------------------------
-      const AREAS = [
-        ["holding", "Holding register (FC03)"],
-        ["input", "Input register (FC04)"],
-        ["coil", "Coil (FC01)"],
-        ["discrete", "Discrete input (FC02)"]
-      ];
+      // The four addressable areas, in the order the protocol numbers them.
+      const AREAS = ["holding", "input", "coil", "discrete"];
       const DATA_TYPES = ["uint16", "int16", "uint32", "int32", "float32", "uint64", "int64", "float64"];
-      const BYTE_ORDERS = ["default", "ABCD", "BADC", "CDAB", "DCBA"];
+      // "default" is deliberately absent: the connection no longer carries a
+      // byte order, so every read names one explicitly.
+      const BYTE_ORDERS = ["ABCD", "BADC", "CDAB", "DCBA"];
       const FORMATS = ["unsigned", "signed", "hex", "binary"];
+
+      /** "Holding (FC03)" / "保持寄存器 (FC03)" — short enough for the select. */
+      function areaLabel(area) {
+        return `${t.areaNames[area] || area} (FC${functionCode(area, false)})`;
+      }
 
       /** Function code shown in the status strip, mirroring Modbus Poll's `F`. */
       function functionCode(area, forWrite) {
@@ -588,15 +749,38 @@
       function isBitArea(area) {
         return area === "coil" || area === "discrete";
       }
+      // A range-browsing workbench. Modbus Poll asks you for one thing after the
+      // link is up — which stretch of the device to look at — and then paints the
+      // whole stretch. Byte/word order live here too, as pure display options, so
+      // the connection form stays down to address, port, slave id and timeout.
+      //
+      // The scope bar is the definition: area, start and quantity. Everything
+      // below it is derived, and every read is exactly one request for the whole
+      // range, which keeps the request count honest and the grid contiguous.
+      const REGISTER_SCOPES = {
+        holding: 125, input: 125, coil: 2000, discrete: 2000
+      };
+      const MODBUS_DEFAULTS = {
+        area: "holding", start: 0, quantity: 16, unitId: 1,
+        dataType: "uint16", byteOrder: "ABCD", wordOrder: "big",
+        format: "unsigned", intervalMs: 1000
+      };
+      // Exactly the keys of MODBUS_DEFAULTS: the read definition, and nothing
+      // that a read produced.
+      const SCOPE_KEYS = Object.keys(MODBUS_DEFAULTS);
 
       function createModbusWorkbench(root) {
-        const storageKey = storageKeyFor("modbus.rows");
+        const storageKey = storageKeyFor("modbus.scope");
+        // Loaded asynchronously in the boot section; `state` starts from the
+        // defaults so the first paint is never empty-handed.
         const state = {
-          rows: [], request: null, timer: null, intervalMs: 1000,
-          busy: false, format: "unsigned", tx: 0, err: 0, scanned: 0, lastResult: null
+          ...MODBUS_DEFAULTS,
+          registers: [], values: [],
+          error: null, at: null, busy: false, timer: null,
+          tx: 0, err: 0
         };
 
-        // ---- status strip -------------------------------------------------
+        // ---- status strip (Modbus Poll's Tx / Err / ID / F / SR) ------------
         const sTx = stat(t.tx, 0);
         const sErr = stat(t.err, 0);
         const sId = stat(t.id, "—");
@@ -604,247 +788,385 @@
         const sSr = stat(t.sr, "1000");
         const strip = el("div", { class: "stats" }, [sTx.node, sErr.node, sId.node, sF.node, sSr.node]);
 
+        // ---- scope bar ------------------------------------------------------
+        const areaSelect = el("select", {
+          title: `${t.area} · ${t.scope}`, style: "flex:0 0 138px",
+          onchange: (event) => {
+            state.area = event.target.value;
+            // Quantities are capped differently for bit and register areas, so
+            // clamp here rather than letting the backend silently shorten it.
+            const cap = REGISTER_SCOPES[state.area] || 125;
+            if (state.quantity > cap) state.quantity = cap;
+            quantityInput.max = String(cap);
+            quantityInput.value = String(state.quantity);
+            commitScope();
+          }
+        }, AREAS.map((value) => el("option", {
+          value, text: areaLabel(value), selected: value === state.area ? "selected" : null
+        })));
+
+        const startInput = el("input", {
+          type: "number", min: "0", max: "65535", style: "width:78px",
+          title: t.start, value: String(state.start),
+          onchange: (event) => {
+            state.start = Math.max(0, Math.min(65535, Number(event.target.value) || 0));
+            event.target.value = String(state.start);
+            commitScope();
+          }
+        });
+
+        const quantityInput = el("input", {
+          type: "number", min: "1", max: "125", style: "width:70px",
+          title: t.quantity, value: String(state.quantity),
+          onchange: (event) => {
+            const cap = REGISTER_SCOPES[state.area] || 125;
+            state.quantity = Math.max(1, Math.min(cap, Number(event.target.value) || 1));
+            event.target.value = String(state.quantity);
+            commitScope();
+          }
+        });
+
+        const unitInput = el("input", {
+          type: "number", min: "0", max: "255", style: "width:70px",
+          title: t.id, value: String(state.unitId),
+          onchange: (event) => {
+            state.unitId = Math.max(0, Math.min(255, Number(event.target.value) || 0));
+            event.target.value = String(state.unitId);
+            // The slave id is global: it applies to the next request, and the
+            // strip should say so before that request happens.
+            updateStrip();
+            persist();
+          }
+        });
+
+        const dataTypeSelect = el("select", {
+          title: t.dataType, style: "flex:0 0 90px",
+          onchange: (event) => {
+            state.dataType = event.target.value;
+            // Word order only reorders words for values spanning four registers,
+            // so it is greyed out for everything narrower rather than left to
+            // look like it did something.
+            syncWordOrderEnabled();
+            commitScope();
+          }
+        }, DATA_TYPES.map((value) => el("option", {
+          value, text: value, selected: value === state.dataType ? "selected" : null
+        })));
+
+        const byteOrderSelect = el("select", {
+          title: `${t.byteOrder} — ${t.displayOnly}`, style: "flex:0 0 78px",
+          onchange: (event) => { state.byteOrder = event.target.value; renderGrid(); persist(); }
+        }, BYTE_ORDERS.map((value) => el("option", {
+          value, text: value, selected: value === state.byteOrder ? "selected" : null
+        })));
+
+        const wordOrderSelect = el("select", {
+          title: `${t.wordOrder} — ${t.displayOnly}`, style: "flex:0 0 96px",
+          onchange: (event) => { state.wordOrder = event.target.value; renderGrid(); persist(); }
+        }, [["big", t.wordBig], ["little", t.wordLittle]].map(([value, label]) => el("option", {
+          value, text: label, selected: value === state.wordOrder ? "selected" : null
+        })));
+
         const formatSelect = el("select", {
-          title: t.format,
-          onchange: (event) => { state.format = event.target.value; renderGrid(); }
-        }, FORMATS.map((value) => el("option", { value, text: value })));
+          title: t.format, style: "flex:0 0 100px",
+          onchange: (event) => { state.format = event.target.value; renderGrid(); persist(); }
+        }, FORMATS.map((value) => el("option", {
+          value, text: value, selected: value === state.format ? "selected" : null
+        })));
 
         const intervalInput = el("input", {
-          type: "number", min: "50", step: "50", value: String(state.intervalMs), style: "width:80px",
-          title: t.interval,
+          type: "number", min: "50", step: "50", style: "width:70px",
+          title: t.interval, value: String(state.intervalMs),
           onchange: (event) => {
             state.intervalMs = Math.max(50, Number(event.target.value) || 1000);
             event.target.value = String(state.intervalMs);
             sSr.set(String(state.intervalMs));
             if (state.timer) restartPolling();
+            persist();
           }
         });
 
         const pollButton = el("button", { class: "primary", text: t.poll, onclick: () => togglePolling() });
 
-        document.querySelector("#appbar-extra").appendChild(el("span", { class: "field" }, [
-          el("span", { text: t.format }), formatSelect
-        ]));
-
-        // ---- request table ------------------------------------------------
-        const requestBody = el("tbody");
-        const requestTable = el("table", { class: "request-table" }, [
-          el("thead", {}, [el("tr", {}, [
-            el("th", { text: t.alias }), el("th", { text: t.area }), el("th", { text: t.address }),
-            el("th", { text: t.quantity }), el("th", { text: t.dataType }), el("th", { text: t.byteOrder }),
-            el("th", { text: t.unit }), el("th", { text: t.status }), el("th", { text: "" })
-          ])])
-        , requestBody]);
-
-        // ---- register grid ------------------------------------------------
-        const grid = el("div", { class: "grid" });
-
-        // The request table is the definition editor, so it gets the wider half;
-        // the value grid adapts to whatever remains.
-        const requestColumn = el("div", { class: "column", style: "flex:0 0 58%" }, [
-          el("div", { class: "pane-head" }, [
-            el("span", { text: t.modbus }),
-            el("span", { class: "count", id: "request-count" })
-          ]),
-          el("div", { class: "toolbar" }, [
-            el("button", { text: t.addRow, onclick: () => { state.rows.push(blankRow()); persist(); renderRequests(); renderGrid(); } }),
+        // The definition controls carry tiny labels; the display controls do not,
+        // because their values already read as words ("ABCD", "High first",
+        // "unsigned") and Modbus Poll likewise leaves them bare. Every control
+        // keeps a title attribute, so nothing is unlabelled on hover.
+        const scopeBar = el("div", { class: "scope-bar" }, [
+          el("span", { class: "field" }, [el("span", { class: "lbl", text: t.area }), areaSelect]),
+          el("span", { class: "field" }, [el("span", { class: "lbl", text: t.start }), startInput]),
+          el("span", { class: "field" }, [el("span", { class: "lbl", text: t.quantity }), quantityInput]),
+          el("span", { class: "field" }, [el("span", { class: "lbl", text: t.id }), unitInput]),
+          el("span", { class: "sep" }),
+          dataTypeSelect,
+          byteOrderSelect,
+          wordOrderSelect,
+          formatSelect,
+          el("span", { class: "sep" }),
+          el("span", { class: "field" }, [el("span", { class: "lbl", text: t.interval }), intervalInput]),
+          el("span", { class: "spacer" }),
+          el("span", { class: "actions" }, [
+            strip,
             pollButton,
-            el("button", { text: t.readOnce, onclick: () => readAll() }),
-            el("span", { class: "spacer" }),
-            strip
-          ]),
-          el("div", { class: "scroll" }, [requestTable])
+            el("button", { text: t.readOnce, onclick: () => readScope() })
+          ])
         ]);
 
-        const valueColumn = el("div", { class: "column" }, [
+        // ---- register grid --------------------------------------------------
+        const grid = el("div", { class: "grid" });
+        const gridCount = el("span", { class: "count" });
+        const rawCount = el("span", { class: "count" });
+
+        const decodedBox = el("div", { class: "decoded-box" });
+
+        const gridScroll = el("div", { class: "scroll" }, [grid]);
+        const decodedRow = el("div", { class: "decoded-row" }, [
+          el("span", { class: "decoded-label", text: t.decoded }),
+          decodedBox
+        ]);
+
+        const gridColumn = el("div", { class: "column" }, [
           el("div", { class: "pane-head" }, [
-            el("span", { text: t.value }),
-            el("span", { class: "count", id: "grid-count" })
+            el("span", { text: t.grid }),
+            el("span", { class: "spacer" }),
+            gridCount
           ]),
-          el("div", { class: "toolbar" }, [
-            el("span", { class: "field" }, [el("span", { text: t.interval }), intervalInput])
+          gridScroll,
+          decodedRow
+        ]);
+
+        const rawColumn = el("div", { class: "column", style: "flex:0 0 300px" }, [
+          el("div", { class: "pane-head" }, [
+            el("span", { text: t.raw }),
+            el("span", { class: "spacer" }),
+            rawCount
           ]),
-          el("div", { class: "scroll" }, [grid]),
+          el("div", { class: "scroll" }, [el("div", { class: "raw-grid" })]),
           el("div", { class: "hint", text: t.writeHint })
         ]);
 
-        root.appendChild(requestColumn);
-        root.appendChild(createSplitter(root, requestColumn, valueColumn));
-        root.appendChild(valueColumn);
+        root.appendChild(scopeBar);
+        const panes = el("div", { class: "panes" });
+        panes.appendChild(gridColumn);
+        panes.appendChild(createSplitter(panes, gridColumn, rawColumn));
+        panes.appendChild(rawColumn);
+        root.appendChild(panes);
 
-        function blankRow() {
-          return {
-            id: Math.random().toString(36).slice(2, 10),
-            name: "", area: "holding", address: 0, quantity: "",
-            dataType: "uint16", byteOrder: "default", unitId: ""
+        const rawGrid = rawColumn.querySelector(".raw-grid");
+
+        // ---- scope handling -------------------------------------------------
+        /**
+         * Word order only means something for values that span four registers
+         * (64-bit types). Disabling it elsewhere keeps the control honest: a
+         * greyed-out option cannot imply it changed the reading.
+         */
+        function syncWordOrderEnabled() {
+          const relevant = registerCount(state.dataType) >= 4;
+          wordOrderSelect.disabled = !relevant;
+          wordOrderSelect.style.opacity = relevant ? "" : "0.45";
+          wordOrderSelect.title = relevant
+            ? `${t.wordOrder} — ${t.displayOnly}`
+            : `${t.wordOrder} — ${t.narrowType}`;
+        }
+
+        /** Any change to the definition invalidates what is on screen. */
+        function commitScope() {
+          state.registers = [];
+          state.values = [];
+          state.error = null;
+          state.at = null;
+          updateStrip();
+          renderGrid();
+          persist();
+        }
+
+        function scopeTask() {
+          const task = {
+            area: state.area,
+            address: state.start,
+            quantity: state.quantity,
+            unitId: state.unitId,
+            dataType: state.dataType
           };
+          // Carried with the request so the backend decodes with the very
+          // settings that were on screen when the value was fetched.
+          if (!isBitArea(state.area)) {
+            task.byteOrder = state.byteOrder;
+            task.wordOrder = state.wordOrder;
+          }
+          return task;
         }
 
         function persist() {
-          writeStorage(storageKey, persistable(state.rows, ["id", "name", "area", "address", "quantity", "dataType", "byteOrder", "unitId"]));
+          writeStorage(storageKey, persistableOne(state, SCOPE_KEYS));
         }
 
-        // ---- request table rendering --------------------------------------
-        function renderRequests() {
-          requestBody.textContent = "";
-          if (!state.rows.length) {
-            requestBody.appendChild(el("tr", {}, [el("td", { colspan: "9" }, [el("div", { class: "empty", text: t.emptyRows })])]));
-            return;
-          }
-          state.rows.forEach((row, index) => {
-            const selected = state.request === row;
-            const tr = el("tr", { class: selected ? "selected" : "" });
-            tr.addEventListener("click", (event) => {
-              if (event.target.closest("input,select,button")) return;
-              state.request = row;
-              renderRequests();
-              renderGrid();
-            });
+        function updateStrip() {
+          sId.set(String(state.unitId));
+          sF.set(functionCode(state.area, false));
+          sTx.set(String(state.tx));
+          sErr.set(String(state.err), state.err ? "bad" : null);
+          sSr.set(String(state.intervalMs));
+        }
 
-            const bind = (key, node, transform) => node.addEventListener("change", () => {
-              row[key] = transform ? transform(node.value) : node.value;
-              persist();
-              if (key === "area" || key === "address" || key === "quantity") {
-                state.scanned = 0;
-                updateStrip();
-              }
-            });
-            const textInput = (key, width) => {
-              const input = el("input", { type: "text", value: row[key], style: width ? `width:${width}` : null });
-              bind(key, input, (value) => value.trim());
-              return input;
-            };
-            const numberInput = (key, min, max, width) => {
-              const input = el("input", {
-                type: "number", min: String(min), max: String(max), style: width ? `width:${width}` : null,
-                value: row[key] === "" || row[key] === null ? "" : String(row[key])
-              });
-              bind(key, input, (value) => (value === "" ? "" : Math.max(min, Math.min(max, Number(value) || min))));
-              return input;
-            };
-            const selectInput = (key, values, labelFor) => {
-              const select = el("select", {}, values.map((value) => el("option", {
-                value, text: labelFor ? labelFor(value) : value,
-                selected: row[key] === value ? "selected" : null
-              })));
-              bind(key, select);
-              return select;
-            };
-
-            // The alias column doubles as the row label in the value grid.
-            tr.appendChild(el("td", {}, [textInput("name", "104px")]));
-            tr.appendChild(el("td", {}, [selectInput("area", AREAS.map((entry) => entry[0]), (value) => AREAS.find((entry) => entry[0] === value)[1])]));
-            tr.appendChild(el("td", {}, [numberInput("address", 0, 65535)]));
-            tr.appendChild(el("td", {}, [numberInput("quantity", 1, 125)]));
-            tr.appendChild(el("td", {}, [selectInput("dataType", DATA_TYPES)]));
-            tr.appendChild(el("td", {}, [selectInput("byteOrder", BYTE_ORDERS, (value) => (value === "default" ? t.preset : value))]));
-            tr.appendChild(el("td", {}, [numberInput("unitId", 0, 255)]));
-
-            const result = row.result;
-            const statusCell = el("td", {});
-            if (!result) {
-              statusCell.appendChild(el("span", { class: "hint-inline", style: "color:var(--industrial-muted)", text: "—" }));
-            } else if (result.ok) {
-              statusCell.appendChild(el("span", { class: "good", text: "OK" }));
+        // ---- reading --------------------------------------------------------
+        async function readScope() {
+          if (state.busy) return;
+          state.busy = true;
+          try {
+            const response = await invoke("modbus/read", {
+              connectionId, tasks: [scopeTask()]
+            }, 20000);
+            const result = (response.results || [])[0] || { ok: false, error: "no result" };
+            state.tx += 1;
+            if (result.ok === false) {
+              state.err += 1;
+              state.registers = [];
+              state.values = [];
+              state.error = result.error || "error";
+              state.at = new Date();
+              toast(result.error || "Read failed", "error");
             } else {
-              statusCell.appendChild(el("span", { class: "bad", text: result.error || "error", title: result.error || "" }));
-            }
-            tr.appendChild(statusCell);
-
-            tr.appendChild(el("td", {}, [
-              el("button", { class: "ghost danger", text: "✕", title: t.remove, onclick: () => {
-                state.rows = state.rows.filter((entry) => entry !== row);
-                if (state.request === row) state.request = state.rows[0] || null;
-                persist();
-                renderRequests();
-                renderGrid();
-              } })
-            ]));
-            requestBody.appendChild(tr);
-          });
-        }
-
-        // ---- register grid rendering --------------------------------------
-        /** Flattens every request into individual addressable cells. */
-        function expandCells() {
-          const cells = [];
-          for (const row of state.rows) {
-            const result = row.result;
-            // One cell per address in the request: one bit for the bit areas, one
-            // 16-bit register otherwise.
-            const count = Math.max(1, Number(row.quantity) || 1);
-            const start = Number(row.address) || 0;
-            for (let offset = 0; offset < count; offset += 1) {
-              let value = null;
-              let error = null;
-              if (result && result.ok) {
-                value = isBitArea(row.area) ? (result.values || [])[offset] : (result.registers || [])[offset];
-              } else if (result && !result.ok) {
-                error = result.error;
+              state.error = null;
+              state.at = new Date();
+              if (isBitArea(state.area)) {
+                state.values = result.values || [];
+                state.registers = [];
+              } else {
+                // Only the raw registers are kept. The decoded value is derived
+                // from them in renderDecoded, so a later byte-order change is
+                // reflected without another request.
+                state.registers = result.registers || [];
+                state.values = [];
               }
-              cells.push({
-                row, address: start + offset, offset, value, error,
-                // The decoded value belongs to the first cell of the span.
-                decoded: offset === 0 && result && result.ok && !isBitArea(row.area) ? result.value : undefined,
-                alias: row.name || "",
-                unitId: row.unitId,
-                area: row.area,
-                bit: isBitArea(row.area)
-              });
             }
+            updateStrip();
+            renderGrid();
+          } catch (error) {
+            state.tx += 1;
+            state.err += 1;
+            state.error = errorText(error);
+            state.at = new Date();
+            updateStrip();
+            toast(state.error, "error");
+            renderGrid();
+          } finally {
+            state.busy = false;
           }
-          return cells;
         }
 
+        // ---- rendering ------------------------------------------------------
         function renderGrid() {
           grid.textContent = "";
-          const cells = expandCells();
-          const countNode = document.getElementById("grid-count");
-          if (countNode) countNode.textContent = cells.length ? `${cells.length}` : "";
-          if (!state.request && state.rows.length) state.request = state.rows[0];
+          rawGrid.textContent = "";
+          const bit = isBitArea(state.area);
+          const count = state.quantity;
 
-          if (!cells.length) {
-            grid.appendChild(el("div", { class: "empty", style: "grid-column:1/-1", text: t.emptyGrid }));
-            return;
+          if (state.error) {
+            grid.appendChild(el("div", { class: "empty", style: "grid-column:1/-1", text: state.error }));
+          } else if (bit) {
+            for (let offset = 0; offset < count; offset += 1) {
+              grid.appendChild(renderBitCell(offset));
+            }
+          } else {
+            // One cell per register, each already decoded on its own so a
+            // 32/64-bit value is legible without a separate detail panel.
+            for (let offset = 0; offset < count; offset += 1) {
+              grid.appendChild(renderRegisterCell(offset));
+            }
           }
-          for (const cell of cells) grid.appendChild(renderCell(cell));
+
+          // Cells are drawn for the whole requested range, so the header reports
+          // that range rather than a count of populated cells. An error clears
+          // it, because then nothing in the range is trustworthy.
+          const shown = state.error ? 0 : count;
+          gridCount.textContent = shown ? `${state.start} – ${state.start + shown - 1}` : "";
+
+          // Raw pane mirrors exactly what came off the wire, untouched.
+          const raw = state.registers;
+          rawCount.textContent = raw.length ? `${raw.length}` : "";
+          if (raw.length) {
+            raw.forEach((value, index) => {
+              const node = el("div", { class: "raw-cell", title: `@ ${state.start + index}` });
+              node.appendChild(el("span", { class: "raw-addr", text: formatAddress(state.start + index) }));
+              node.appendChild(el("span", { class: "raw-v", text: formatRegister(value, "hex") }));
+              node.appendChild(el("span", { class: "raw-dec", text: String(value) }));
+              rawGrid.appendChild(node);
+            });
+          } else {
+            rawGrid.appendChild(el("div", { class: "empty", text: t.emptyGrid }));
+          }
+
+          renderDecoded();
         }
 
-        function renderCell(cell) {
-          const node = el("div", { class: "cell" + (cell.error ? " err" : ""), title: buildCellTitle(cell) });
-          node.appendChild(el("span", { class: "addr", text: formatAddress(cell.address) }));
+        function renderRegisterCell(offset) {
+          const address = state.start + offset;
+          const raw = state.registers[offset];
+          const node = el("div", { class: "cell" });
+          node.appendChild(el("span", { class: "addr", text: formatAddress(address) }));
           node.appendChild(el("span", { class: "eq", text: "=" }));
-          const valueText = cell.error
-            ? shortError(cell.error)
-            : cell.bit
-              ? (cell.value === undefined || cell.value === null ? "—" : (cell.value ? "1" : "0"))
-              : formatRegister(cell.value, state.format);
-          node.appendChild(el("span", { class: "v" + (cell.error ? " bad" : ""), text: valueText }));
-
-          // Writing happens only on areas that accept it; the same restriction
-          // is enforced by the backend, and the cursor makes it visible early.
-          const writable = cell.area === "coil" || cell.area === "holding";
-          if (writable && !cell.error) {
-            node.addEventListener("dblclick", () => writeCell(cell));
+          node.appendChild(el("span", {
+            class: "v",
+            text: raw === undefined ? "—" : formatRegister(raw, state.format)
+          }));
+          const writable = state.area === "holding";
+          if (writable && raw !== undefined) {
+            node.title = `${state.area} @ ${address} · ${state.dataType} · (double-click to write)`;
+            node.addEventListener("dblclick", () => writeCell(address, raw));
           } else {
             node.style.cursor = "default";
+            node.title = `${state.area} @ ${address}`;
           }
           return node;
         }
 
-        /** Keeps a failing cell one line wide; the tooltip carries the detail. */
-        function shortError(message) {
-          const text = String(message || "error");
-          return text.length > 16 ? text.slice(0, 14) + "…" : text;
+        function renderBitCell(offset) {
+          const address = state.start + offset;
+          const raw = state.values[offset];
+          const node = el("div", { class: "cell" });
+          node.appendChild(el("span", { class: "addr", text: formatAddress(address) }));
+          node.appendChild(el("span", { class: "eq", text: "=" }));
+          node.appendChild(el("span", {
+            class: "v" + (raw ? " on" : ""),
+            text: raw === undefined ? "—" : (raw ? "1" : "0")
+          }));
+          const writable = state.area === "coil";
+          if (writable && raw !== undefined) {
+            node.title = `${state.area} @ ${address} · (double-click to write)`;
+            node.addEventListener("dblclick", () => writeCell(address, raw));
+          } else {
+            node.style.cursor = "default";
+            node.title = `${state.area} @ ${address}`;
+          }
+          return node;
         }
 
-        function buildCellTitle(cell) {
-          const parts = [cell.area, `@ ${cell.address}`];
-          if (cell.alias) parts.unshift(cell.alias);
-          if (cell.decoded !== undefined) parts.push(`decoded ${formatValue(cell.decoded)}`);
-          if (cell.error) parts.push(cell.error);
-          else if (cell.area === "coil" || cell.area === "holding") parts.push("(double-click to write)");
-          return parts.join(" · ");
+        /** The range's decoded value: the reason the byte/word options exist. */
+        function renderDecoded() {
+          decodedBox.textContent = "";
+          if (state.error || isBitArea(state.area)) {
+            decodedRow.style.display = "none";
+            return;
+          }
+          decodedRow.style.display = "";
+          if (!state.registers.length) {
+            decodedBox.appendChild(el("span", { class: "decoded-empty", text: t.emptyScope }));
+            return;
+          }
+          // Decoded here rather than taken from the response, so switching byte
+          // or word order updates this readout immediately and the request that
+          // produced it stays on the wire unchanged.
+          const value = decodeRegistersClient(state.registers, state.dataType, state.byteOrder, state.wordOrder);
+          if (value === undefined) {
+            decodedBox.appendChild(el("span", { class: "decoded-empty", text: t.emptyScope }));
+            return;
+          }
+          decodedBox.appendChild(el("span", { class: "decoded-value", text: formatValue(value) }));
+          const meta = [state.dataType, state.byteOrder, state.wordOrder];
+          const span = registerCount(state.dataType);
+          meta.push(`${span} × 16-bit`);
+          decodedBox.appendChild(el("span", { class: "decoded-meta", text: meta.join(" · ") }));
         }
 
         // Slot numbers are 1-based per area, matching how PLC addresses printed
@@ -853,100 +1175,41 @@
           return String(address).padStart(5, "0");
         }
 
-        // ---- reading -------------------------------------------------------
-        function toTasks() {
-          return state.rows.map((row) => {
-            const task = { area: row.area, address: Number(row.address) || 0 };
-            if (row.quantity !== "" && row.quantity !== null) task.quantity = Number(row.quantity);
-            if (row.dataType) task.dataType = row.dataType;
-            if (row.byteOrder && row.byteOrder !== "default") task.byteOrder = row.byteOrder;
-            if (row.unitId !== "" && row.unitId !== null) task.unitId = Number(row.unitId);
-            return task;
-          });
-        }
-
-        function updateStrip() {
-          const row = state.request;
-          sId.set(row ? String(row.unitId === "" || row.unitId === null ? t.preset : row.unitId) : "—");
-          sF.set(row ? functionCode(row.area, false) : "—");
-          sTx.set(String(state.tx));
-          sErr.set(String(state.err), state.err ? "bad" : null);
-          sSr.set(String(state.intervalMs));
-        }
-
-        async function readAll() {
-          if (state.busy || !state.rows.length) return;
-          state.busy = true;
-          try {
-            const response = await invoke("modbus/read", { connectionId, tasks: toTasks() }, 20000);
-            const results = response.results || [];
-            state.tx += 1;
-            let failures = 0;
-            results.forEach((result, index) => {
-              const row = state.rows[index];
-              if (!row) return;
-              row.result = result;
-              if (result.ok === false) failures += 1;
-            });
-            state.err += failures;
-            state.lastResult = { at: new Date(), failures, total: results.length };
-            updateStrip();
-            renderRequests();
-            renderGrid();
-            if (failures) {
-              const first = results.find((result) => result.ok === false);
-              toast(`${failures}/${results.length} failed: ${first && first.error}`, "error");
-            }
-          } catch (error) {
-            state.tx += 1;
-            state.err += 1;
-            updateStrip();
-            toast(errorText(error), "error");
-          } finally {
-            state.busy = false;
-          }
-        }
-
-        // ---- writing -------------------------------------------------------
-        async function writeCell(cell) {
-          const isCoil = cell.bit;
-          const current = isCoil
-            ? (cell.value ? "true" : "false")
-            : formatRegister(cell.value, "unsigned");
+        // ---- writing --------------------------------------------------------
+        async function writeCell(address, current) {
+          const isCoil = isBitArea(state.area);
+          const initial = isCoil
+            ? (current ? "true" : "false")
+            : formatRegister(current, "unsigned");
           const field = el("input", {
-            type: "text",
-            value: cell.value === undefined || cell.value === null ? "" : current,
-            placeholder: isCoil ? "true / false" : cell.row.dataType,
-            style: "min-width:170px"
+            type: "text", value: initial, style: "min-width:170px",
+            placeholder: isCoil ? "true / false" : state.dataType
           });
           const payload = [
-            cell.alias || cell.area,
-            `@ ${cell.address}`,
-            `unit ${cell.unitId === "" || cell.unitId === null ? t.preset : cell.unitId}`,
-            isCoil ? "" : cell.row.dataType
+            `${state.area} @ ${address}`,
+            `unit ${state.unitId}`,
+            isCoil ? "" : state.dataType
           ].filter(Boolean).join(" · ");
 
           const confirmed = await confirmDialog({
             title: isCoil ? t.writeTitleCoil : t.writeTitleRegister,
             body: t.confirmWriteBody,
-            payload,
-            field,
-            label: t.value,
+            payload, field, label: t.value,
             confirmLabel: t.confirm
           });
           if (confirmed === null) return;
 
           try {
-            const entry = { area: cell.area, address: cell.address };
-            if (cell.unitId !== "" && cell.unitId !== null) entry.unitId = Number(cell.unitId);
+            const entry = { area: state.area, address, unitId: state.unitId };
             if (isCoil) {
               const text = String(field.value).trim().toLowerCase();
               entry.value = !(text === "false" || text === "0");
             } else {
-              entry.dataType = cell.row.dataType;
-              if (cell.row.byteOrder !== "default") entry.byteOrder = cell.row.byteOrder;
+              entry.dataType = state.dataType;
+              entry.byteOrder = state.byteOrder;
+              entry.wordOrder = state.wordOrder;
               entry.value = Number(field.value);
-              if (Number.isNaN(entry.value)) {
+              if (!Number.isFinite(entry.value)) {
                 toast(`"${field.value}" is not a number`, "error");
                 return;
               }
@@ -955,8 +1218,8 @@
             const result = (response.results || [])[0];
             state.tx += 1;
             if (result && result.ok) {
-              toast(`${cell.area} @ ${cell.address} ← ${field.value}`, "info");
-              readAll();
+              toast(`${state.area} @ ${address} ← ${field.value}`, "info");
+              readScope();
             } else {
               state.err += 1;
               updateStrip();
@@ -967,7 +1230,7 @@
           }
         }
 
-        // ---- polling -------------------------------------------------------
+        // ---- polling --------------------------------------------------------
         function togglePolling() {
           if (state.timer) {
             clearInterval(state.timer);
@@ -976,29 +1239,48 @@
             pollButton.setAttribute("aria-pressed", "false");
             return;
           }
-          state.timer = setInterval(readAll, state.intervalMs);
+          state.timer = setInterval(readScope, state.intervalMs);
           pollButton.textContent = t.stop;
           pollButton.setAttribute("aria-pressed", "true");
-          readAll();
+          readScope();
         }
 
         function restartPolling() {
           clearInterval(state.timer);
-          state.timer = setInterval(readAll, state.intervalMs);
+          state.timer = setInterval(readScope, state.intervalMs);
         }
 
-        // ---- boot ----------------------------------------------------------
+        // ---- boot -----------------------------------------------------------
         (async () => {
           const saved = await readStorage(storageKey);
-          if (Array.isArray(saved) && saved.length) {
-            state.rows = saved.map((row) => ({ ...blankRow(), ...row }));
+          if (saved && typeof saved === "object" && !Array.isArray(saved)) {
+            for (const key of Object.keys(MODBUS_DEFAULTS)) {
+              if (saved[key] !== undefined && saved[key] !== null && saved[key] !== "") {
+                state[key] = saved[key];
+              }
+            }
           }
-          if (!state.rows.length) state.rows.push(blankRow());
-          state.request = state.rows[0];
+          // Push the restored scope back into the controls before the first
+          // read, so the widgets and the request can never disagree.
+          state.start = Math.max(0, Math.min(65535, Number(state.start) || 0));
+          state.unitId = Math.max(0, Math.min(255, Number(state.unitId) || 0));
+          const cap = REGISTER_SCOPES[state.area] || 125;
+          state.quantity = Math.max(1, Math.min(cap, Number(state.quantity) || 1));
+          areaSelect.value = state.area;
+          startInput.value = String(state.start);
+          quantityInput.max = String(cap);
+          quantityInput.value = String(state.quantity);
+          unitInput.value = String(state.unitId);
+          dataTypeSelect.value = state.dataType;
+          byteOrderSelect.value = state.byteOrder;
+          wordOrderSelect.value = state.wordOrder;
+          formatSelect.value = state.format;
+          intervalInput.value = String(state.intervalMs);
+          syncWordOrderEnabled();
+
           updateStrip();
-          renderRequests();
           renderGrid();
-          readAll();
+          readScope();
         })();
 
         window.addEventListener("beforeunload", () => { if (state.timer) clearInterval(state.timer); });
@@ -1439,11 +1721,15 @@
         connId.textContent = connectionId;
         connId.title = connectionId;
 
-        // Modbus renders a request table next to a register grid; OPC UA renders
-        // the three UaExpert panes.
+        // Modbus renders a scope strip above a value grid and a raw pane; OPC UA
+        // renders the three UaExpert panes side by side.
         const main = document.querySelector("#main");
-        if (isOpcua) createOpcuaWorkbench(main);
-        else createModbusWorkbench(main);
+        if (isOpcua) {
+          createOpcuaWorkbench(main);
+        } else {
+          main.classList.add("stack");
+          createModbusWorkbench(main);
+        }
       }
 
       window.addEventListener("dbx-plugin-env", (event) => {

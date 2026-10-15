@@ -28,19 +28,28 @@ nothing has to be relearned.
 
 **Modbus TCP** follows [Modbus Poll](https://www.modbustools.com/modbus_poll.html):
 
-- A status strip above the register view shows `Tx` (requests sent), `Err`
-  (failed responses), `ID` (slave id), `F` (active function code) and `SR`
-  (scan rate) for the selected request.
-- The left pane defines requests — alias, area, address, quantity, type, byte
-  order, slave id — one row per function code, exactly like a poll definition.
-- The right pane is a dense `address = value` register grid, laid out in as many
-  columns as the pane allows.
+- **The connection form asks for four things only** — host, port, slave id and
+  request timeout. Byte order and word order are not connection properties in
+  Modbus Poll either; they belong to how you are looking at the data, so they
+  live in the workbench.
+- The workbench reads **one contiguous range at a time**: pick the area, a start
+  address and a quantity, and the whole stretch is painted in one dense
+  `address = value` grid, laid out in as many columns as the pane allows. Every
+  read is exactly one request for that range, so the request count stays honest.
+- A status strip shows `Tx` (requests sent), `Err` (failed responses), `ID`
+  (slave id), `F` (active function code) and `SR` (scan rate).
+- **The slave id is global.** Change it in the scope bar and it applies to the
+  next read, exactly as Modbus Poll's `ID` selector does.
 - **Double-click a register or coil to write it.** Read-only areas (input
   registers, discrete inputs) are not clickable, matching the backend rule.
-- A display selector renders values as unsigned, signed, hex or binary. The
-  raw 16-bit word is shown; the decoded 32/64-bit value appears in the tooltip.
-- The divider between the panes is draggable (and arrow-key adjustable), because
-  a wide register dump and a long request list compete for space.
+- **Byte order and word order affect the decoded value only.** The raw pane on
+  the right always shows the untouched 16-bit registers that came off the wire;
+  switching order re-decodes the value above the grid without another request.
+  Word order is disabled for types narrower than 64 bits, where it would have no
+  effect.
+- A display selector renders the grid as unsigned, signed, hex or binary. The
+  decoded 32/64-bit value for the range is shown beneath the grid.
+- The divider between the panes is draggable (and arrow-key adjustable).
 
 **OPC UA** follows [UaExpert](https://documentation.unified-automation.com/uaexpert/):
 

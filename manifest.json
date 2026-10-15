@@ -70,31 +70,6 @@
           "type": "number",
           "binding": "config",
           "default": 3000
-        },
-        {
-          "key": "byte_order",
-          "label": "Default byte order",
-          "type": "select",
-          "binding": "config",
-          "default": "ABCD",
-          "options": [
-            { "label": "ABCD - big endian", "value": "ABCD" },
-            { "label": "BADC - byte swap", "value": "BADC" },
-            { "label": "CDAB - word swap", "value": "CDAB" },
-            { "label": "DCBA - little endian", "value": "DCBA" }
-          ]
-        },
-        {
-          "key": "word_order",
-          "label": "Default word order",
-          "type": "select",
-          "binding": "config",
-          "default": "big",
-          "description": "Only affects 64-bit values that span four registers.",
-          "options": [
-            { "label": "High word first", "value": "big" },
-            { "label": "Low word first", "value": "little" }
-          ]
         }
       ],
       "workbench": "com.dbx.industrial-protocols.modbus.workbench",
@@ -252,9 +227,7 @@
             "host": { "label": "主机地址" },
             "port": { "label": "端口" },
             "unit_id": { "label": "单元号（从站地址）" },
-            "timeout_ms": { "label": "请求超时（毫秒）" },
-            "byte_order": { "label": "默认字节序" },
-            "word_order": { "label": "默认字序" }
+            "timeout_ms": { "label": "请求超时（毫秒）" }
           }
         },
         "com.dbx.industrial-protocols.opcua": {
