@@ -23,50 +23,61 @@ Both workbenches are served by the same `ui/index.html`; the page routes on
 
 ## Interface
 
-The two workbenches reproduce the layout of the tools engineers already know, so
-nothing has to be relearned.
+Both workbenches follow the same shape: **configuration on the left, values on
+the right.** Nothing that describes *what* to read sits in front of what you are
+reading, so the table is never competing with form fields for space.
 
-**Modbus TCP** follows [Modbus Poll](https://www.modbustools.com/modbus_poll.html):
+The styling uses DBX's own design tokens (`--color-background`, `--color-card`,
+`--color-muted`, `--color-border`, `--color-primary`, `--radius-md`/`-lg`), so the
+plugin follows the surrounding application in light and dark themes instead of
+imposing a look of its own. Nothing is hard-coded to a white background.
+
+**Modbus TCP**
 
 - **The connection form asks for four things only** — host, port, slave id and
-  request timeout. Byte order and word order are not connection properties in
-  Modbus Poll either; they belong to how you are looking at the data, so they
-  live in the workbench.
-- The workbench reads **one contiguous range at a time**: pick the area, a start
-  address and a quantity, and the whole stretch is painted in one dense
-  `address = value` grid, laid out in as many columns as the pane allows. Every
-  read is exactly one request for that range, so the request count stays honest.
-- A status strip shows `Tx` (requests sent), `Err` (failed responses), `ID`
-  (slave id), `F` (active function code) and `SR` (scan rate).
-- **The slave id is global.** Change it in the scope bar and it applies to the
-  next read, exactly as Modbus Poll's `ID` selector does.
-- **Double-click a register or coil to write it.** Read-only areas (input
-  registers, discrete inputs) are not clickable, matching the backend rule.
-- **Byte order and word order affect the decoded value only.** The raw pane on
-  the right always shows the untouched 16-bit registers that came off the wire;
-  switching order re-decodes the value above the grid without another request.
+  request timeout. Byte order and word order are not properties of the cable;
+  they belong to how you are reading the data, so they live in the workbench.
+- **The sidebar holds the range configurations and is where you switch between
+  them.** Each entry is one contiguous range — area, start address, quantity,
+  slave id — with its own data type, byte order, word order, display format and
+  scan rate. Selecting one loads it: the table, the form and the decoded readout
+  all follow the selection, and the addresses of a range that has not been read
+  yet are still listed so you can see what you are about to read.
+- Ranges are added with `+`, which starts the new one where the previous one
+  ended, and deleted from the row's own button. The last range cannot be
+  deleted: an empty workbench has nothing to show and no obvious way back.
+- **The right side is only addresses and values** — a table of `Address`,
+  `Value` and the untouched `Raw value`, with a fixed-width address gutter so
+  either column can be read on its own. Every read is exactly one request for
+  the selected range.
+- **Double-click a value to write it.** Read-only areas (input registers,
+  discrete inputs) are not clickable, matching the backend rule.
+- **Byte order and word order affect the decoded value only.** The raw column
+  always shows the 16-bit registers that came off the wire; changing either
+  option re-decodes the value and re-renders the table without another request.
   Word order is disabled for types narrower than 64 bits, where it would have no
   effect.
-- A display selector renders the grid as unsigned, signed, hex or binary. The
-  decoded 32/64-bit value for the range is shown beneath the grid.
-- The divider between the panes is draggable (and arrow-key adjustable).
+- `Tx` (requests sent) and `Err` (failed responses) sit in the header beside the
+  Read and Poll actions.
+- The divider between the sidebar and the table is draggable, and adjustable
+  with the arrow keys.
 
-**OPC UA** follows [UaExpert](https://documentation.unified-automation.com/uaexpert/):
+**OPC UA**
 
-- Three panes: **Address space**, the **Data access view**, and **Attributes**.
-- The address space tree prefixes each node with a colour-coded class glyph
-  (`O` object, `V` variable, `M` method, `W` view, `T` type) standing in for
-  UaExpert's icon set. Clicking a node expands it; double-clicking adds it to the
-  data access view.
-- A **namespace picker** highlights one namespace at a time — matching nodes go
-  bold and the rest dim, which is UaExpert's behaviour rather than filtering
-  rows out, so the tree shape stays stable.
-- The data access view lists node id, value, data type, timestamp and quality.
-  Clicking a value opens the write dialog; a node that is not `Good` is flagged.
-- The attributes pane describes the node selected in the tree.
-- Both dividers are draggable.
+- Left sidebar: the **address space** tree, with a namespace picker and rebrowse.
+  The tree prefixes each node with a colour-coded class glyph (`O` object,
+  `V` variable, `M` method, `W` view, `T` type) standing in for an icon set.
+  Clicking expands a node; double-clicking adds it to the watch list.
+- The **namespace picker highlights** one namespace at a time — matching nodes go
+  bold and the rest dim, rather than filtering rows out, so the tree shape stays
+  stable.
+- Right side: the **watch list** — node id, value, data type, timestamp and
+  quality. Clicking a value opens the write dialog; a node that is not `Good` is
+  flagged.
+- The **attributes** panel sits beneath the watch list and describes the node
+  selected in the tree.
 
-Both workbenches report connection state in the title bar and never write to the
+Both workbenches report connection state in the header and never write to the
 device without a confirmation dialog that names the exact target and value.
 
 ## Modbus TCP
