@@ -37,15 +37,22 @@ imposing a look of its own. Nothing is hard-coded to a white background.
 - **The connection form asks for four things only** — host, port, slave id and
   request timeout. Byte order and word order are not properties of the cable;
   they belong to how you are reading the data, so they live in the workbench.
-- **The sidebar holds the range configurations and is where you switch between
-  them.** Each entry is one contiguous range — area, start address, quantity,
-  slave id — with its own data type, byte order, word order, display format and
-  scan rate. Selecting one loads it: the table, the form and the decoded readout
-  all follow the selection, and the addresses of a range that has not been read
-  yet are still listed so you can see what you are about to read.
-- Ranges are added with `+`, which starts the new one where the previous one
-  ended, and deleted from the row's own button. The last range cannot be
-  deleted: an empty workbench has nothing to show and no obvious way back.
+- **The sidebar has two tabs. `Devices` manages the endpoints; `Ranges` manages
+  what is read from them.**
+- **Devices.** Each device is an IP, port, slave id and timeout with its own
+  session in the backend, so one workbench can read several PLCs at once. Every
+  device shows its state — `connected` with the round-trip it measured,
+  `connecting`, `unreachable` with the backend's reason, or `not connected` — and
+  a device that fails is retried with a growing, capped delay instead of being
+  silently treated as up. A device still referenced by a range cannot be deleted.
+  A new workbench seeds its first device from the saved DBX connection, so the IP
+  never has to be typed twice.
+- **Ranges.** Each entry is one contiguous range — device, area, start address,
+  quantity — with its own data type, byte order, word order, display format and
+  scan rate. Selecting one loads it: the grid, the form and the decoded readout
+  all follow the selection. Ranges are added with `+`, which starts the new one
+  where the previous one ended, and deleted from the row itself. The last range
+  cannot be deleted.
 - **The right side is only addresses and values** — one cell per address, holding
   the address, the value and the untouched raw word, with a fixed-width hex
   gutter so the column lines up.
@@ -55,6 +62,13 @@ imposing a look of its own. Nothing is hard-coded to a white background.
   scrolling, so the same number of addresses stays on screen while polling. Both
   are view settings: changing them re-flows the grid and keeps the values already
   read, without another request.
+- **The `Log` button opens a read log.** Every read is recorded with its time,
+  device, address range, outcome and duration. Repeats of the same outcome
+  collapse into one row with a counter, so a one-second poll does not bury
+  everything else while the first occurrence of a new failure still gets its own
+  line. A failed read records the exact reason — a Modbus exception code, a
+  timeout, a refused connection — and the same reason is shown above the grid, so
+  it is visible whether or not the log is open.
 - **Double-click a value to write it.** Read-only areas (input registers,
   discrete inputs) are not clickable, matching the backend rule.
 - **Byte order and word order affect the decoded value only.** The raw word in

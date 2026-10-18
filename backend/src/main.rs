@@ -15,7 +15,7 @@ mod opcua_client;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use dbx_plugin_sdk::{
     PluginEmitter, PluginError, PluginHandler, PluginMetadata, PluginServer, RequestContext,
@@ -39,6 +39,25 @@ const MCP_READ_TOOLS: [&str; 3] = ["modbus_read", "opcua_read", "opcua_browse"];
 
 /// Per-connection Modbus defaults taken from the connection form.
 type ModbusDefaults = (String, String, u8);
+
+/// Device sessions are opened by the workbench itself, one per device in its
+/// list, so they are keyed distinctly from the connection DBX opened. The host
+/// never guesses at these ids, and `modbus/read` resolves either kind the same
+/// way.
+const DEVICE_PREFIX: &str = "device:";
+
+fn device_key(device_id: &str) -> String {
+    format!("{DEVICE_PREFIX}{device_id}")
+}
+
+/// Splits a `host:port` endpoint. Splitting on the last colon keeps an IPv6
+/// literal such as `[::1]:502` in one piece.
+fn split_endpoint(endpoint: &str) -> (String, u16) {
+    match endpoint.rsplit_once(':') {
+        Some((host, port)) => (host.to_string(), port.parse::<u16>().unwrap_or(502)),
+        None => (endpoint.to_string(), 502),
+    }
+}
 
 enum Session {
     Modbus(ModbusSession),
@@ -162,6 +181,20 @@ fn text_field(connection: &Value, key: &str) -> Option<String> {
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(str::to_string)
+}
+
+/// Request parameters, as opposed to connection snapshot fields.
+fn param_text(params: &Value, key: &str) -> Option<String> {
+    params
+        .get(key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+fn param_u64(params: &Value, key: &str) -> Option<u64> {
+    params.get(key).and_then(Value::as_u64)
 }
 
 fn number_field(connection: &Value, key: &str) -> Option<u64> {
@@ -545,6 +578,13 @@ impl PluginHandler for Plugin {
             "connection/disconnect" => self.disconnect(&params),
             "modbus/read" => self.modbus_read(&params),
             "modbus/write" => self.modbus_write(&params),
+            // Device sessions: the workbench keeps a list of devices and opens
+            // one session per device, rather than being limited to the single
+            // endpoint DBX passed in when the workbench was opened.
+            "modbus/open" => self.modbus_open(&params),
+            "modbus/close" => self.modbus_close(&params),
+            "modbus/devices" => self.modbus_devices(),
+            "modbus/connection_info" => self.modbus_connection_info(&params),
             "opcua/browse" => self.opcua_browse(&params),
             "opcua/read" => self.opcua_read(&params),
             "opcua/write" => self.opcua_write(&params),
@@ -725,6 +765,138 @@ impl Plugin {
             .map(|task| read_task(session, task, &defaults))
             .collect();
         Ok(json!({ "results": results }))
+    }
+
+    /// Opens (or re-opens) a device session and reports whether the endpoint
+    /// actually answers, with the round-trip it took.
+    ///
+    /// Probing here rather than at first read means a mistyped IP is a failure
+    /// the device list can show immediately, instead of a read that fails later
+    /// with no obvious cause.
+    fn modbus_open(&self, params: &Value) -> Result<Value, PluginError> {
+        let device_id = param_text(params, "deviceId")
+            .ok_or_else(|| PluginError::new(-32602, "Missing deviceId"))?;
+        let host = param_text(params, "host")
+            .ok_or_else(|| PluginError::new(-32602, "Missing host"))?;
+        if host.is_empty() {
+            return Err(PluginError::new(-32602, "Missing host"));
+        }
+        let port = param_u64(params, "port").unwrap_or(502).clamp(1, 65_535) as u16;
+        let timeout_ms = param_u64(params, "timeoutMs")
+            .unwrap_or(3000)
+            .clamp(200, 120_000);
+        let unit_id = param_u64(params, "unitId").unwrap_or(1).min(255) as u8;
+        let byte_order = param_text(params, "byteOrder").unwrap_or_else(|| "ABCD".to_string());
+        let word_order = param_text(params, "wordOrder").unwrap_or_else(|| "big".to_string());
+
+        let key = device_key(&device_id);
+        // Re-opening replaces the previous session, so the device form can be
+        // saved and reconnected without leaking a socket.
+        if let Some(previous) = self.drop_session(&key) {
+            if let Session::Modbus(session) = previous.as_ref() {
+                session.disconnect();
+            }
+        }
+
+        let session = ModbusSession::new(host.as_str(), port, Duration::from_millis(timeout_ms));
+        let endpoint = session.endpoint();
+        let started = Instant::now();
+        let probe = session.probe();
+        let latency_ms = started.elapsed().as_millis() as u64;
+
+        match probe {
+            Ok((_, note)) => {
+                self.store(
+                    key,
+                    Session::Modbus(session),
+                    Some((byte_order, word_order, unit_id)),
+                )?;
+                Ok(json!({
+                    "success": true,
+                    "endpoint": endpoint,
+                    "latencyMs": latency_ms,
+                    "message": format!("{endpoint} reachable; {note}"),
+                }))
+            }
+            Err(error) => Ok(json!({
+                "success": false,
+                "endpoint": endpoint,
+                "latencyMs": latency_ms,
+                "message": format!("Cannot reach {endpoint}: {error}"),
+            })),
+        }
+    }
+
+    fn modbus_close(&self, params: &Value) -> Result<Value, PluginError> {
+        let device_id = param_text(params, "deviceId")
+            .ok_or_else(|| PluginError::new(-32602, "Missing deviceId"))?;
+        let closed = match self.drop_session(&device_key(&device_id)) {
+            Some(session) => {
+                if let Session::Modbus(session) = session.as_ref() {
+                    session.disconnect();
+                }
+                true
+            }
+            None => false,
+        };
+        Ok(json!({ "success": true, "closed": closed }))
+    }
+
+    /// Which devices currently hold an open session. The workbench asks on boot
+    /// so a UI reload reuses the sockets the backend already has instead of
+    /// reconnecting every device.
+    fn modbus_devices(&self) -> Result<Value, PluginError> {
+        // Collect the endpoints first, then read the defaults: holding the
+        // session registry while taking the defaults lock would nest the two for
+        // no reason.
+        let mut found: Vec<(String, String)> = Vec::new();
+        {
+            let sessions = self
+                .sessions
+                .lock()
+                .map_err(|_| PluginError::new(-32000, "Session registry is poisoned"))?;
+            for (key, session) in sessions.iter() {
+                let Some(device_id) = key.strip_prefix(DEVICE_PREFIX) else { continue };
+                if let Session::Modbus(session) = session.as_ref() {
+                    found.push((device_id.to_string(), session.endpoint()));
+                }
+            }
+        }
+        let devices: Vec<Value> = found
+            .into_iter()
+            .map(|(device_id, endpoint)| {
+                let (_, _, unit_id) = self.modbus_defaults_for(&device_key(&device_id));
+                json!({
+                    "deviceId": device_id,
+                    "endpoint": endpoint,
+                    "unitId": unit_id,
+                })
+            })
+            .collect();
+        Ok(json!({ "devices": devices }))
+    }
+
+    /// The endpoint DBX opened this workbench against, so a fresh workbench can
+    /// seed its device list from the saved connection instead of asking the user
+    /// to retype the IP it already knows.
+    fn modbus_connection_info(&self, params: &Value) -> Result<Value, PluginError> {
+        let connection_id = target_connection_id(params)?;
+        let session = self.lookup(&connection_id)?;
+        let Session::Modbus(session) = session.as_ref() else {
+            return Err(PluginError::new(
+                -32602,
+                format!("Connection {connection_id} is not a Modbus TCP connection"),
+            ));
+        };
+        let endpoint = session.endpoint();
+        let (host, port) = split_endpoint(&endpoint);
+        let (_, _, unit_id) = self.modbus_defaults_for(&connection_id);
+        Ok(json!({
+            "host": host,
+            "port": port,
+            "unitId": unit_id,
+            "endpoint": endpoint,
+        }))
     }
 
     fn modbus_write(&self, params: &Value) -> Result<Value, PluginError> {
@@ -1185,5 +1357,43 @@ mod tests {
 
         // The raw registers themselves are never touched by a display option.
         assert_eq!(registers, vec![0x4200u16, 0x0000]);
+    }
+
+    /// Device sessions live in the same registry as the connection DBX opened,
+    /// so their ids must never collide with a host connection id.
+    #[test]
+    fn device_sessions_are_namespaced() {
+        let key = device_key("plc-1");
+        assert_eq!(key, "device:plc-1");
+        assert!(key.starts_with(DEVICE_PREFIX));
+        // A host connection id never starts with the prefix, so stripping it is
+        // unambiguous when listing devices.
+        assert_eq!(key.strip_prefix(DEVICE_PREFIX), Some("plc-1"));
+        assert_eq!("8f2c1a".strip_prefix(DEVICE_PREFIX), None);
+    }
+
+    /// The endpoint reported back to the workbench is re-split into a host and a
+    /// port it can put in the device form.
+    #[test]
+    fn endpoints_split_back_into_host_and_port() {
+        assert_eq!(split_endpoint("192.168.1.10:502"), ("192.168.1.10".to_string(), 502));
+        assert_eq!(split_endpoint("plc.local:15020"), ("plc.local".to_string(), 15020));
+        // IPv6 literals keep their brackets and inner colons.
+        assert_eq!(split_endpoint("[::1]:502"), ("[::1]".to_string(), 502));
+        // A malformed port falls back to the protocol default rather than
+        // producing a device the user cannot fix from the form.
+        assert_eq!(split_endpoint("host:not-a-port"), ("host".to_string(), 502));
+        assert_eq!(split_endpoint("bare-host"), ("bare-host".to_string(), 502));
+    }
+
+    /// `modbus/open` clamps the values it accepts, so a device form typo cannot
+    /// ask for a port of zero or a timeout that hangs the plugin.
+    #[test]
+    fn open_parameters_are_clamped() {
+        assert_eq!(0u64.clamp(1, 65_535), 1);
+        assert_eq!(70_000u64.clamp(1, 65_535), 65_535);
+        assert_eq!(10u64.clamp(200, 120_000), 200);
+        assert_eq!(500_000u64.clamp(200, 120_000), 120_000);
+        assert_eq!(999u64.min(255), 255);
     }
 }

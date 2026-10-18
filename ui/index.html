@@ -32,6 +32,7 @@
         --dbx-primary-fg: var(--color-primary-foreground, #ffffff);
         --dbx-destructive: var(--color-destructive, #e7000b);
         --dbx-success: var(--color-success, #16a34a);
+        --dbx-warning: var(--color-warning, #d97706);
         --dbx-radius: var(--radius-md, 6px);
         --dbx-radius-lg: var(--radius-lg, 8px);
         --dbx-font: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif);
@@ -53,6 +54,7 @@
         --dbx-primary-fg: var(--color-primary-foreground, #18181b);
         --dbx-destructive: var(--color-destructive, #f3625f);
         --dbx-success: var(--color-success, #4ade80);
+        --dbx-warning: var(--color-warning, #fbbf24);
       }
 
       /* -------------------------------------------------------------- reset */
@@ -152,13 +154,23 @@
       /* The sidebar holds the configuration: the list you switch between on
          top, the selected item's settings below. */
       .sidebar {
-        flex: 0 0 276px; min-width: 0; display: flex; flex-direction: column;
+        flex: 0 0 300px; min-width: 0; display: flex; flex-direction: column;
         border-right: var(--dbx-line); background: var(--dbx-card);
       }
       .sidebar-head {
         display: flex; align-items: center; gap: 8px;
         flex: none; height: 36px; padding: 0 10px 0 12px;
         border-bottom: var(--dbx-line);
+      }
+      .sidebar-head .tabs { display: flex; gap: 2px; flex: 1; min-width: 0; }
+      .tab {
+        height: 26px; padding: 0 11px; font-size: 12px;
+        background: transparent; border-color: transparent;
+        color: var(--dbx-muted-fg);
+      }
+      .tab:hover:not([aria-selected="true"]) { background: var(--dbx-muted); }
+      .tab[aria-selected="true"] {
+        background: var(--dbx-muted); color: var(--dbx-fg); font-weight: 500;
       }
       .sidebar-head .label {
         font-size: 10.5px; font-weight: 600; letter-spacing: .06em;
@@ -184,6 +196,7 @@
         background: transparent; border: 1px solid var(--dbx-border);
       }
       .scope-item .scope-dot.ok { background: var(--dbx-success); border-color: transparent; }
+      .scope-item .scope-dot.warn { background: var(--dbx-warning); border-color: transparent; }
       .scope-item .scope-dot.bad { background: var(--dbx-destructive); border-color: transparent; }
       .scope-body { display: flex; flex-direction: column; min-width: 0; flex: 1; }
       .scope-name {
@@ -221,6 +234,22 @@
       /* Two controls sharing a row, as start/quantity naturally pair. */
       .form-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 9px; }
       .form-pair .form-row + .form-row { margin-top: 0; }
+      /* Device connection state, shown in the form as colour and words. */
+      .device-status { font-size: 12px; line-height: 1.5; }
+      .device-status.ok { color: var(--dbx-success); }
+      .device-status.bad { color: var(--dbx-destructive); }
+      .device-status.warn { color: var(--dbx-warning); }
+      .device-error {
+        margin-top: 4px; font-size: 11px; line-height: 1.5;
+        color: var(--dbx-destructive); word-break: break-word;
+      }
+      .button-row { display: flex; gap: 6px; margin-top: 10px; }
+      .button-row button { flex: 1; padding: 0 8px; }
+      .empty-list {
+        padding: 14px 12px; font-size: 12px; line-height: 1.5;
+        color: var(--dbx-muted-fg);
+      }
+
       .config .note {
         margin-top: 8px; font-size: 11px; line-height: 1.5;
         color: var(--dbx-muted-fg); font-family: var(--dbx-mono);
@@ -363,6 +392,56 @@
         padding: 34px 20px; text-align: center;
         color: var(--dbx-muted-fg); line-height: 1.6; font-size: 12.5px;
       }
+
+      /* ---------------------------------------------------------- read log */
+      /* A drawer under the data: what was read, from which device, and — when
+         it failed — the exact reason the backend gave. */
+      .log-panel {
+        flex: 0 0 auto; display: flex; flex-direction: column;
+        max-height: 220px; border-top: var(--dbx-line);
+        background: var(--dbx-card);
+      }
+      .log-head {
+        display: flex; align-items: center; gap: 8px; flex: none;
+        height: 30px; padding: 0 10px 0 14px;
+        background: var(--dbx-muted);
+        border-bottom: var(--dbx-line);
+      }
+      .log-head .title {
+        font-size: 10.5px; font-weight: 600; letter-spacing: .06em;
+        text-transform: uppercase; color: var(--dbx-muted-fg);
+      }
+      .log-head .count {
+        font-family: var(--dbx-mono); font-size: 11px; color: var(--dbx-muted-fg);
+      }
+      .log-head button { height: 22px; padding: 0 8px; font-size: 11.5px; }
+      .log-rows { overflow: auto; }
+      .log-row {
+        display: grid;
+        grid-template-columns: 68px minmax(80px, 140px) 104px 62px 1fr 62px;
+        gap: 10px; align-items: baseline;
+        padding: 4px 14px; font-size: 11.5px;
+        border-bottom: 1px solid color-mix(in srgb, var(--dbx-border) 45%, transparent);
+      }
+      .log-row:hover { background: var(--dbx-muted); }
+      .log-row .t, .log-row .d {
+        font-family: var(--dbx-mono); font-variant-numeric: tabular-nums;
+        color: var(--dbx-muted-fg);
+      }
+      .log-row .dev, .log-row .rng {
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .log-row .rng { font-family: var(--dbx-mono); color: var(--dbx-muted-fg); }
+      .log-row .res { font-weight: 500; }
+      .log-row .res.ok { color: var(--dbx-success); }
+      .log-row .res.bad { color: var(--dbx-destructive); }
+      .log-row .msg {
+        white-space: normal; word-break: break-word; line-height: 1.4;
+        color: var(--dbx-muted-fg);
+      }
+      .log-row.failed .msg { color: var(--dbx-destructive); }
+      .log-row .cnt { color: var(--dbx-muted-fg); font-size: 10.5px; }
+      .log-empty { padding: 18px 14px; color: var(--dbx-muted-fg); font-size: 12px; }
       .hint {
         flex: none; padding: 7px 12px; font-size: 11.5px; line-height: 1.5;
         color: var(--dbx-muted-fg); border-top: var(--dbx-line);
@@ -526,6 +605,21 @@
           nameLabel: "Name", on: "ON", off: "OFF",
           columns: "Columns", rows: "Rows",
           prevPage: "Previous page", nextPage: "Next page",
+          // Devices
+          devices: "Devices", device: "Device", tabDevices: "Devices", tabRanges: "Ranges",
+          addDevice: "Add device", deviceName: "Name", groupDevice: "Address",
+          host: "Host", port: "Port", deviceTimeout: "Timeout (ms)",
+          groupConnection: "Connection", connect: "Connect", disconnect: "Disconnect",
+          reconnect: "Reconnect", deleteDevice: "Delete",
+          deviceOpen: "connected", deviceOpening: "connecting…",
+          deviceIdle: "not connected", deviceError: "unreachable",
+          noDevices: "No devices yet.", noDevice: "No device",
+          deviceInUse: "This device is still used by ranges",
+          emptyList: "Nothing here yet.",
+          // Read log
+          logButton: "Log", logTitle: "Read log", logEmpty: "No reads yet.",
+          logClear: "Clear", logClose: "Close log", logCount: "entries",
+          logOk: "ok", logFailed: "failed",
           holding: "Holding", input: "Input", coil: "Coil", discrete: "Discrete",
           readOnlyArea: "read-only"
         },
@@ -564,6 +658,19 @@
           nameLabel: "名称", on: "ON", off: "OFF",
           columns: "列数", rows: "行数",
           prevPage: "上一页", nextPage: "下一页",
+          devices: "设备", device: "设备", tabDevices: "设备", tabRanges: "配置",
+          addDevice: "添加设备", deviceName: "名称", groupDevice: "地址",
+          host: "IP 地址", port: "端口", deviceTimeout: "超时（毫秒）",
+          groupConnection: "连接", connect: "连接", disconnect: "断开",
+          reconnect: "重连", deleteDevice: "删除",
+          deviceOpen: "已连接", deviceOpening: "连接中…",
+          deviceIdle: "未连接", deviceError: "无法连接",
+          noDevices: "还没有设备。", noDevice: "无设备",
+          deviceInUse: "该设备仍被配置引用",
+          emptyList: "暂无内容。",
+          logButton: "日志", logTitle: "读取日志", logEmpty: "还没有读取记录。",
+          logClear: "清空", logClose: "关闭日志", logCount: "条",
+          logOk: "成功", logFailed: "失败",
           holding: "保持寄存器", input: "输入寄存器", coil: "线圈", discrete: "离散输入",
           readOnlyArea: "只读"
         }
@@ -862,10 +969,24 @@
         return `${t[area] || area} · FC${functionCode(area, false)}`;
       }
 
+      // ---------------------------------------------------------------------
+      // Devices and ranges
+      //
+      // A workbench can talk to several devices at once, so each one gets its
+      // own session in the backend (`device:<id>`) and its own status. Every
+      // range names the device it reads from, which is what lets a list of
+      // ranges span more than one PLC.
+      // ---------------------------------------------------------------------
+      const DEVICE_KEY_PREFIX = "device:";
+      const DEVICE_DEFAULTS = { name: "", host: "", port: 502, unitId: 1, timeoutMs: 3000 };
+      // Exactly the definition keys; status, latency and the retry timer are
+      // runtime state and are never written.
+      const DEVICE_KEYS = ["id", ...Object.keys(DEVICE_DEFAULTS)];
+
       // One configuration per range. Each remembers what it last read, so
       // switching between them does not blank the display.
       const SCOPE_DEFAULTS = {
-        area: "holding", start: 0, quantity: 32, unitId: 1,
+        deviceId: "", area: "holding", start: 0, quantity: 32,
         dataType: "uint16", byteOrder: "ABCD", wordOrder: "big",
         format: "unsigned", intervalMs: 1000, name: "",
         // How the values are laid out. Columns × rows is one page; a range
@@ -873,23 +994,39 @@
         // addresses is always visible while polling.
         columns: 4, rows: 8
       };
-      // Exactly the definition keys: everything a read produced is excluded.
       // `page` is deliberately absent — where you are looking is not a setting.
       const SCOPE_KEYS = ["id", ...Object.keys(SCOPE_DEFAULTS)];
       const MAX_COLUMNS = 6;
       const MAX_ROWS = 50;
 
-      function newScope(patch) {
+      function newId() {
+        return Math.random().toString(36).slice(2, 10);
+      }
+
+      function newDevice(patch) {
         return {
-          id: Math.random().toString(36).slice(2, 10),
-          result: null,
-          page: 0,
-          ...SCOPE_DEFAULTS,
+          id: newId(),
+          // Runtime only.
+          status: "idle", latencyMs: null, error: null, retryTimer: null, retryDelay: 0,
+          ...DEVICE_DEFAULTS,
           ...(patch || {})
         };
       }
 
-      /** "Holding 0 – 31" when the user has not named the range themselves. */
+      function newScope(patch) {
+        return { id: newId(), result: null, page: 0, ...SCOPE_DEFAULTS, ...(patch || {}) };
+      }
+
+      function deviceLabel(device) {
+        if (!device) return "";
+        return (device.name && device.name.trim()) || device.host || t.devices;
+      }
+
+      function deviceEndpoint(device) {
+        return device ? `${device.host}:${device.port}` : "";
+      }
+
+      /** `Holding 0 – 31` when the user has not named the range themselves. */
       function scopeTitle(scope) {
         if (scope.name && scope.name.trim()) return scope.name.trim();
         const end = scope.start + Math.max(1, scope.quantity) - 1;
@@ -905,38 +1042,64 @@
         return Math.max(1, Math.ceil(Math.max(1, scope.quantity) / pageCapacity(scope)));
       }
 
+      // A device that answered with a Modbus exception is still a device that
+      // answered, so only transport-shaped failures count as a lost connection.
+      const TRANSPORT_HINTS = [
+        /^connect/i, /timed out/i, /connection/i, /socket/i, /broken pipe/i,
+        /reset by peer/i, /read response/i, /write request/i, /write response/i,
+        /cannot resolve/i, /no address/i
+      ];
+
+      function isTransportError(message) {
+        const text = String(message || "");
+        if (/^Modbus exception/i.test(text)) return false;
+        return TRANSPORT_HINTS.some((pattern) => pattern.test(text));
+      }
+
       function createModbusWorkbench(root) {
-        const storageKey = storageKeyFor("modbus.scopes");
+        const scopeKey = storageKeyFor("modbus.scopes");
+        const deviceKey = storageKeyFor("modbus.devices");
         const legacyKey = storageKeyFor("modbus.scope");
         const state = {
-          scopes: [], activeId: null, busy: false, timer: null,
-          tx: 0, err: 0
+          devices: [], scopes: [], activeId: null, selectedDeviceId: null,
+          tab: "ranges", busy: false, timer: null, tx: 0, err: 0,
+          // Read history is diagnostic, so it lives in memory only.
+          log: [], logOpen: false
         };
 
         const active = () => state.scopes.find((scope) => scope.id === state.activeId) || state.scopes[0];
+        const deviceById = (id) => state.devices.find((device) => device.id === id) || null;
+        const selectedDevice = () => deviceById(state.selectedDeviceId) || state.devices[0] || null;
+        const deviceOf = (scope) => deviceById(scope && scope.deviceId) || state.devices[0] || null;
+        const sessionId = (device) => DEVICE_KEY_PREFIX + device.id;
 
-        // ---- header counters and actions ------------------------------------
+        // ---- header counters and device state -------------------------------
         const sTx = stat(t.tx, 0);
         const sErr = stat(t.err, 0);
         const counters = el("div", { class: "stat-row" }, [sTx.node, sErr.node]);
 
         const readButton = el("button", { class: "primary", text: t.readOnce, onclick: () => readActive() });
         const pollButton = el("button", { text: t.poll, onclick: () => togglePolling() });
-        document.querySelector("#appbar-extra").append(counters, readButton, pollButton);
-
-        // ---- sidebar: the list you switch between ---------------------------
-        const scopeList = el("div", { class: "scope-list" });
-        const addButton = el("button", {
-          class: "icon ghost", text: "+", title: t.addScope, onclick: () => addScope()
+        const logButton = el("button", {
+          text: t.logButton, title: t.logTitle,
+          "aria-pressed": "false", onclick: () => toggleLog()
         });
+        document.querySelector("#appbar-extra").append(logButton, counters, readButton, pollButton);
+
+        // ---- sidebar: two tabs over one panel -------------------------------
+        const deviceTab = el("button", { class: "tab", text: t.tabDevices, onclick: () => setTab("devices") });
+        const rangeTab = el("button", { class: "tab", text: t.tabRanges, onclick: () => setTab("ranges") });
+        const addButton = el("button", { class: "icon ghost", text: "+", onclick: () => addCurrent() });
         const sidebarHead = el("div", { class: "sidebar-head" }, [
-          el("span", { class: "label", text: t.scopes }),
+          el("div", { class: "tabs", role: "tablist" }, [deviceTab, rangeTab]),
           el("span", { class: "spacer" }),
           addButton
         ]);
 
+        const deviceList = el("div", { class: "scope-list device-list" });
+        const scopeList = el("div", { class: "scope-list range-list" });
         const configForm = el("div", { class: "config" });
-        const sidebar = el("aside", { class: "sidebar" }, [sidebarHead, scopeList, configForm]);
+        const sidebar = el("aside", { class: "sidebar" }, [sidebarHead, deviceList, scopeList, configForm]);
 
         // ---- content: only addresses and values -----------------------------
         const valueGrid = el("div", { class: "value-grid" });
@@ -946,17 +1109,13 @@
         const rangeLabel = el("span", { class: "count" });
         const pageInfo = el("span", { class: "page-info" });
         const prevButton = el("button", {
-          class: "icon ghost", text: "‹", title: t.prevPage,
-          onclick: () => turnPage(-1)
+          class: "icon ghost", text: "‹", title: t.prevPage, onclick: () => turnPage(-1)
         });
         const nextButton = el("button", {
-          class: "icon ghost", text: "›", title: t.nextPage,
-          onclick: () => turnPage(1)
+          class: "icon ghost", text: "›", title: t.nextPage, onclick: () => turnPage(1)
         });
         const pager = el("div", { class: "pager" }, [prevButton, pageInfo, nextButton]);
 
-        // Columns and rows decide how much is visible at once, so they sit with
-        // the data instead of in the read definition.
         const columnsInput = el("input", {
           type: "number", min: "1", max: String(MAX_COLUMNS), title: t.columns,
           onchange: (event) => setLayout("columns", event.target.value, 1, MAX_COLUMNS, event.target)
@@ -976,141 +1135,43 @@
         const decodedBox = el("div", { class: "decoded" }, [decodedLabel, decodedValue, decodedMeta]);
 
         const contentHead = el("div", { class: "content-head" }, [
-          el("div", { class: "content-title" }, [
-            el("h2", { text: t.addresses }),
-            rangeLabel
-          ]),
+          el("div", { class: "content-title" }, [el("h2", { text: t.addresses }), rangeLabel]),
           el("span", { class: "spacer" }),
           viewControls,
           pager,
           decodedBox
         ]);
 
-        // The footnote says what to do next: read the range, or how to write it.
         const footnote = el("div", { class: "hint", text: t.writeHint });
 
+        // ---- read log -------------------------------------------------------
+        const logCount = el("span", { class: "count" });
+        const logRows = el("div", { class: "log-rows" });
+        const logPanel = el("div", { class: "log-panel", style: "display:none" }, [
+          el("div", { class: "log-head" }, [
+            el("span", { class: "title", text: t.logTitle }),
+            logCount,
+            el("span", { class: "spacer" }),
+            el("button", { text: t.logClear, onclick: () => { state.log = []; renderLog(); } }),
+            el("button", { class: "icon ghost", text: "✕", title: t.logClose, onclick: () => toggleLog(false) })
+          ]),
+          logRows
+        ]);
+
         const content = el("section", { class: "content" }, [
-          contentHead, errorBar, gridWrap, footnote
+          contentHead, errorBar, gridWrap, logPanel, footnote
         ]);
 
         root.appendChild(sidebar);
         root.appendChild(createSplitter(root, sidebar, content));
         root.appendChild(content);
 
-        // Cell nodes are kept when only values change, so a paged 2000-bit range
-        // does not rebuild its page on every poll tick.
         let cellCache = { key: "", cells: [] };
+        // Filled by renderDeviceForm so status updates can refresh the form
+        // without rebuilding it, which would steal focus from a field.
+        let deviceFormRefs = null;
 
-        // ---- persistence ----------------------------------------------------
-        function persist() {
-          writeStorage(storageKey, {
-            activeId: state.activeId,
-            scopes: persistable(state.scopes, SCOPE_KEYS)
-          });
-        }
-
-        function addScope() {
-          const current = active();
-          const patch = current
-            ? {
-                area: current.area,
-                // A new range starts where the last one ended, which is the
-                // common case when walking through a device block by block.
-                start: Math.min(65535, current.start + Math.max(1, current.quantity)),
-                quantity: current.quantity,
-                unitId: current.unitId,
-                dataType: current.dataType,
-                byteOrder: current.byteOrder,
-                wordOrder: current.wordOrder,
-                format: current.format,
-                intervalMs: current.intervalMs,
-                columns: current.columns,
-                rows: current.rows
-              }
-            : {};
-          const scope = newScope(patch);
-          state.scopes.push(scope);
-          state.activeId = scope.id;
-          persist();
-          renderScopeList();
-          renderConfig();
-          syncLayoutInputs();
-          renderGrid(true);
-          readActive();
-        }
-
-        function removeScope(scope) {
-          if (state.scopes.length <= 1) {
-            // Keep one configuration at all times: an empty workbench has no
-            // meaningful state and no way back without a plus button hunt.
-            toast(t.emptyGrid, "info");
-            return;
-          }
-          if (state.timer) stopPolling();
-          state.scopes = state.scopes.filter((entry) => entry !== scope);
-          if (state.activeId === scope.id) state.activeId = state.scopes[0].id;
-          persist();
-          renderScopeList();
-          renderConfig();
-          syncLayoutInputs();
-          renderGrid(true);
-          // Land on a range that actually has something to show.
-          const next = active();
-          if (next && !next.result) readActive();
-        }
-
-        function selectScope(scope) {
-          if (state.activeId === scope.id) return;
-          state.activeId = scope.id;
-          persist();
-          renderScopeList();
-          renderConfig();
-          syncLayoutInputs();
-          renderGrid(true);
-          // Polling follows the selection, otherwise the timer would keep
-          // reading a range that is no longer on screen.
-          if (state.timer) {
-            restartPolling();
-          } else if (!scope.result) {
-            // Switching to a range is a request to see it, so load it rather
-            // than showing an empty page and making the user press Read.
-            readActive();
-          }
-        }
-
-        // ---- scope list -----------------------------------------------------
-        function renderScopeList() {
-          scopeList.textContent = "";
-          for (const scope of state.scopes) {
-            const selected = scope.id === state.activeId;
-            const item = el("div", {
-              class: "scope-item" + (selected ? " active" : ""),
-              tabindex: "0", role: "button",
-              "aria-current": selected ? "true" : null,
-              onclick: () => selectScope(scope),
-              onkeydown: (event) => {
-                if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectScope(scope); }
-              }
-            });
-
-            const dotState = scope.result ? (scope.result.error ? "bad" : "ok") : "";
-            item.appendChild(el("span", { class: "scope-dot " + dotState }));
-            item.appendChild(el("div", { class: "scope-body" }, [
-              el("span", { class: "scope-name", text: scopeTitle(scope), title: scopeTitle(scope) }),
-              el("span", {
-                class: "scope-meta",
-                text: `${formatAddress(scope.start)}–${formatAddress(scope.start + Math.max(1, scope.quantity) - 1)}`
-              })
-            ]));
-            item.appendChild(el("button", {
-              class: "icon ghost danger scope-del", text: "✕", title: t.removeScope,
-              onclick: (event) => { event.stopPropagation(); removeScope(scope); }
-            }));
-            scopeList.appendChild(item);
-          }
-        }
-
-        // ---- config form ----------------------------------------------------
+        // ---- form helpers ---------------------------------------------------
         /** A labelled control row, appended to whichever section is given. */
         function formRow(parent, label, control) {
           parent.appendChild(el("div", { class: "form-row" }, [
@@ -1127,18 +1188,443 @@
           ]));
         }
 
-        function numberInput(scope, key, min, max, onDone) {
+        /**
+         * A bounded number field that writes back to `target[key]`. Works for a
+         * device or a range, since both are plain objects with numeric fields.
+         */
+        function numberInput(target, key, min, max, onDone) {
           return el("input", {
-            type: "number", min: String(min), max: String(max), value: String(scope[key]),
+            type: "number", min: String(min), max: String(max), value: String(target[key]),
             onchange: (event) => {
               const value = Math.max(min, Math.min(max, Number(event.target.value) || min));
-              scope[key] = value;
+              target[key] = value;
               event.target.value = String(value);
               onDone();
             }
           });
         }
 
+        // ---- persistence ----------------------------------------------------
+        function persistDevices() {
+          writeStorage(deviceKey, persistable(state.devices, DEVICE_KEYS));
+        }
+
+        function persistScopes() {
+          writeStorage(scopeKey, {
+            activeId: state.activeId,
+            scopes: persistable(state.scopes, SCOPE_KEYS)
+          });
+        }
+
+        // ---- tabs -----------------------------------------------------------
+        function setTab(tab) {
+          state.tab = tab;
+          renderSidebar();
+        }
+
+        function addCurrent() {
+          if (state.tab === "devices") addDevice();
+          else addScope();
+        }
+
+        function renderSidebar() {
+          const onDevices = state.tab === "devices";
+          deviceTab.setAttribute("aria-selected", String(onDevices));
+          rangeTab.setAttribute("aria-selected", String(!onDevices));
+          deviceList.style.display = onDevices ? "" : "none";
+          scopeList.style.display = onDevices ? "none" : "";
+          addButton.title = onDevices ? t.addDevice : t.addScope;
+          // The header names the active range's device, so it follows every
+          // selection, not just connection events.
+          renderHeaderDevice();
+          if (onDevices) {
+            renderDeviceList();
+            renderDeviceForm();
+          } else {
+            renderScopeList();
+            renderConfig();
+            syncLayoutInputs();
+          }
+        }
+
+        // ---- device list ----------------------------------------------------
+        function renderDeviceList() {
+          deviceList.textContent = "";
+          if (!state.devices.length) {
+            deviceList.appendChild(el("div", { class: "empty-list", text: t.noDevices }));
+            return;
+          }
+          for (const device of state.devices) {
+            const selected = device.id === selectedDevice()?.id;
+            const item = el("div", {
+              class: "scope-item" + (selected ? " active" : ""),
+              tabindex: "0", role: "button",
+              "aria-current": selected ? "true" : null,
+              onclick: () => selectDevice(device),
+              onkeydown: (event) => {
+                if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectDevice(device); }
+              }
+            });
+            item.appendChild(el("span", { class: "scope-dot " + statusClass(device) }));
+            item.appendChild(el("div", { class: "scope-body" }, [
+              el("span", {
+                class: "scope-name", text: deviceLabel(device),
+                title: `${deviceLabel(device)} · ${deviceEndpoint(device)}`
+              }),
+              el("span", { class: "scope-meta", text: deviceSummary(device) })
+            ]));
+            deviceList.appendChild(item);
+          }
+        }
+
+        function statusClass(device) {
+          if (device.status === "open") return "ok";
+          if (device.status === "error") return "bad";
+          if (device.status === "opening") return "warn";
+          return "";
+        }
+
+        function statusText(device) {
+          switch (device.status) {
+            case "open":
+              return device.latencyMs === null ? t.deviceOpen : `${t.deviceOpen} · ${device.latencyMs} ${t.ms}`;
+            case "opening": return t.deviceOpening;
+            case "error": return t.deviceError;
+            default: return t.deviceIdle;
+          }
+        }
+
+        function deviceSummary(device) {
+          return `${deviceEndpoint(device)} · ${statusText(device)}`;
+        }
+
+        function renderHeaderDevice() {
+          const scope = active();
+          const device = scope ? deviceOf(scope) : null;
+          const conn = document.querySelector("#conn");
+          const connId = document.querySelector("#conn-id");
+          if (!conn || !connId) return;
+          conn.classList.remove("live", "dead");
+          if (!device) {
+            connId.textContent = t.noDevice;
+            connId.title = "";
+            return;
+          }
+          if (device.status === "open") conn.classList.add("live");
+          else if (device.status === "error") conn.classList.add("dead");
+          connId.textContent = `${deviceLabel(device)} · ${statusText(device)}`;
+          connId.title = [
+            deviceEndpoint(device),
+            `${t.unit} ${device.unitId}`,
+            connectionId ? `connection ${connectionId}` : "",
+            device.error || ""
+          ].filter(Boolean).join(" · ");
+        }
+
+        function selectDevice(device) {
+          state.selectedDeviceId = device.id;
+          renderDeviceList();
+          renderDeviceForm();
+          renderHeaderDevice();
+        }
+
+        function addDevice() {
+          const previous = selectedDevice();
+          const device = newDevice(previous
+            // Same subnet, next host: what you usually want when adding a second
+            // PLC to a line, and it is still editable.
+            ? { host: previous.host, port: previous.port, unitId: previous.unitId, timeoutMs: previous.timeoutMs }
+            : {});
+          state.devices.push(device);
+          state.selectedDeviceId = device.id;
+          persistDevices();
+          renderSidebar();
+          renderHeaderDevice();
+          openDevice(device);
+        }
+
+        function removeDevice(device) {
+          const used = state.scopes.filter((scope) => scope.deviceId === device.id);
+          if (used.length) {
+            toast(`${t.deviceInUse}: ${used.length}`, "error");
+            return;
+          }
+          closeDevice(device);
+          state.devices = state.devices.filter((entry) => entry !== device);
+          if (state.selectedDeviceId === device.id) state.selectedDeviceId = state.devices[0]?.id || null;
+          persistDevices();
+          renderSidebar();
+          renderHeaderDevice();
+        }
+
+        // ---- device session -------------------------------------------------
+        /**
+         * Opens (or re-opens) this device's session and records what happened.
+         * Status is runtime state: a device that could not be reached is shown
+         * as failed and retried, never silently treated as connected.
+         */
+        async function openDevice(device, options) {
+          if (!device || device.status === "opening") return false;
+          const quiet = options && options.quiet;
+          clearTimeout(device.retryTimer);
+          device.retryTimer = null;
+          device.status = "opening";
+          device.error = null;
+          syncDeviceState();
+          try {
+            const response = await invoke("modbus/open", {
+              deviceId: device.id,
+              host: device.host,
+              port: Number(device.port) || 502,
+              unitId: Number(device.unitId) || 0,
+              timeoutMs: Number(device.timeoutMs) || 3000
+            }, 30000);
+            if (response && response.success) {
+              device.status = "open";
+              device.latencyMs = typeof response.latencyMs === "number" ? response.latencyMs : null;
+              device.retryDelay = 0;
+            } else {
+              device.status = "error";
+              device.latencyMs = null;
+              device.error = (response && response.message) || t.deviceError;
+            }
+          } catch (error) {
+            device.status = "error";
+            device.latencyMs = null;
+            device.error = errorText(error);
+          }
+          syncDeviceState();
+          if (device.status === "error") {
+            if (!quiet) toast(`${deviceLabel(device)}: ${device.error}`, "error");
+            scheduleReconnect(device);
+          }
+          return device.status === "open";
+        }
+
+        async function closeDevice(device) {
+          if (!device) return;
+          clearTimeout(device.retryTimer);
+          device.retryTimer = null;
+          device.retryDelay = 0;
+          device.status = "idle";
+          device.latencyMs = null;
+          device.error = null;
+          try {
+            await invoke("modbus/close", { deviceId: device.id }, 10000);
+          } catch (error) {
+            // A close that the backend did not confirm still leaves the device
+            // idle here; the next open replaces the session anyway.
+          }
+          syncDeviceState();
+        }
+
+        /** Retries a failed device with a growing, capped delay. */
+        function scheduleReconnect(device) {
+          if (!device || device.retryTimer) return;
+          device.retryDelay = Math.min(30000, (device.retryDelay || 1000) * 2);
+          device.retryTimer = setTimeout(async () => {
+            device.retryTimer = null;
+            if (device.status === "idle") return;
+            const scope = active();
+            const restored = await openDevice(device, { quiet: true });
+            if (restored && scope && deviceOf(scope)?.id === device.id) readActive();
+            else if (!restored) scheduleReconnect(device);
+          }, device.retryDelay);
+        }
+
+        /** Refreshes whatever shows device state, without rebuilding the form. */
+        function syncDeviceState() {
+          renderDeviceList();
+          renderHeaderDevice();
+          if (deviceFormRefs) syncDeviceForm();
+          // Cheap: the in-place path only refreshes text, and it keeps the
+          // "device unreachable" bar honest as status changes.
+          renderGrid();
+        }
+
+        // ---- device form ----------------------------------------------------
+        function renderDeviceForm() {
+          const device = selectedDevice();
+          configForm.textContent = "";
+          deviceFormRefs = null;
+          if (!device) {
+            configForm.appendChild(el("div", { class: "empty-list", text: t.noDevices }));
+            return;
+          }
+
+          const identity = el("div", { class: "config-section" });
+          formRow(identity, t.deviceName, el("input", {
+            type: "text", value: device.name || "", placeholder: device.host || t.deviceName,
+            onchange: (event) => {
+              device.name = event.target.value.trim();
+              persistDevices();
+              renderDeviceList();
+              renderHeaderDevice();
+            }
+          }));
+          configForm.appendChild(identity);
+
+          const addressSection = el("div", { class: "config-section" }, [
+            el("div", { class: "title", text: t.groupDevice })
+          ]);
+          formRow(addressSection, t.host, el("input", {
+            type: "text", value: device.host || "", placeholder: "192.168.1.10",
+            onchange: (event) => {
+              device.host = event.target.value.trim();
+              persistDevices();
+              renderDeviceList();
+              renderHeaderDevice();
+            }
+          }));
+          formPair(
+            addressSection,
+            t.port, numberInput(device, "port", 1, 65535, () => {
+              persistDevices();
+              renderDeviceList();
+              renderHeaderDevice();
+            }),
+            t.unit, numberInput(device, "unitId", 0, 255, () => {
+              persistDevices();
+              renderHeaderDevice();
+            })
+          );
+          formRow(addressSection, t.deviceTimeout, numberInput(device, "timeoutMs", 200, 120000, () => {
+            persistDevices();
+          }));
+          configForm.appendChild(addressSection);
+
+          // ---- connection ----------------------------------------------------
+          const statusSection = el("div", { class: "config-section" }, [
+            el("div", { class: "title", text: t.groupConnection })
+          ]);
+          const statusLine = el("div", { class: "device-status" });
+          const errorLine = el("div", { class: "device-error" });
+          const connectButton = el("button", {
+            class: "primary", text: t.connect,
+            onclick: () => { device.retryDelay = 0; openDevice(device); }
+          });
+          const disconnectButton = el("button", { text: t.disconnect, onclick: () => closeDevice(device) });
+          const deleteButton = el("button", {
+            class: "ghost danger", text: t.deleteDevice,
+            onclick: () => removeDevice(device)
+          });
+          statusSection.appendChild(statusLine);
+          statusSection.appendChild(errorLine);
+          statusSection.appendChild(el("div", { class: "button-row" }, [
+            connectButton, disconnectButton, deleteButton
+          ]));
+          configForm.appendChild(statusSection);
+
+          deviceFormRefs = { deviceId: device.id, statusLine, errorLine, connectButton, disconnectButton };
+          syncDeviceForm();
+        }
+
+        function syncDeviceForm() {
+          if (!deviceFormRefs) return;
+          const device = deviceById(deviceFormRefs.deviceId);
+          if (!device) { deviceFormRefs = null; return; }
+          const { statusLine, errorLine, connectButton, disconnectButton } = deviceFormRefs;
+          statusLine.textContent = statusText(device);
+          statusLine.className = "device-status " + statusClass(device);
+          errorLine.textContent = device.error || "";
+          errorLine.style.display = device.error ? "" : "none";
+          connectButton.disabled = device.status === "opening";
+          connectButton.textContent = device.status === "open" ? t.reconnect : t.connect;
+          disconnectButton.disabled = device.status !== "open";
+        }
+
+        // ---- scope list -----------------------------------------------------
+        function renderScopeList() {
+          scopeList.textContent = "";
+          for (const scope of state.scopes) {
+            const selected = scope.id === state.activeId;
+            const item = el("div", {
+              class: "scope-item" + (selected ? " active" : ""),
+              tabindex: "0", role: "button",
+              "aria-current": selected ? "true" : null,
+              onclick: () => selectScope(scope),
+              onkeydown: (event) => {
+                if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectScope(scope); }
+              }
+            });
+            const dotState = scope.result ? (scope.result.error ? "bad" : "ok") : "";
+            item.appendChild(el("span", { class: "scope-dot " + dotState }));
+            item.appendChild(el("div", { class: "scope-body" }, [
+              el("span", { class: "scope-name", text: scopeTitle(scope), title: scopeTitle(scope) }),
+              el("span", {
+                class: "scope-meta",
+                text: `${formatAddress(scope.start)}–${formatAddress(scope.start + Math.max(1, scope.quantity) - 1)} · ${deviceLabel(deviceOf(scope))}`
+              })
+            ]));
+            item.appendChild(el("button", {
+              class: "icon ghost danger scope-del", text: "✕", title: t.removeScope,
+              onclick: (event) => { event.stopPropagation(); removeScope(scope); }
+            }));
+            scopeList.appendChild(item);
+          }
+        }
+
+        function addScope() {
+          const current = active();
+          const patch = current
+            ? {
+                deviceId: current.deviceId,
+                area: current.area,
+                // A new range starts where the last one ended, which is the
+                // common case when walking through a device block by block.
+                start: Math.min(65535, current.start + Math.max(1, current.quantity)),
+                quantity: current.quantity,
+                dataType: current.dataType,
+                byteOrder: current.byteOrder,
+                wordOrder: current.wordOrder,
+                format: current.format,
+                intervalMs: current.intervalMs,
+                columns: current.columns,
+                rows: current.rows
+              }
+            : { deviceId: state.devices[0]?.id || "" };
+          const scope = newScope(patch);
+          state.scopes.push(scope);
+          state.activeId = scope.id;
+          persistScopes();
+          renderSidebar();
+          renderGrid(true);
+          readActive();
+        }
+
+        function removeScope(scope) {
+          if (state.scopes.length <= 1) {
+            // Keep one configuration at all times: an empty workbench has no
+            // meaningful state and no way back without a plus button hunt.
+            toast(t.emptyGrid, "info");
+            return;
+          }
+          if (state.timer) stopPolling();
+          state.scopes = state.scopes.filter((entry) => entry !== scope);
+          if (state.activeId === scope.id) state.activeId = state.scopes[0].id;
+          persistScopes();
+          renderSidebar();
+          renderGrid(true);
+          const next = active();
+          if (next && !next.result) readActive();
+        }
+
+        function selectScope(scope) {
+          if (state.activeId === scope.id) return;
+          state.activeId = scope.id;
+          persistScopes();
+          renderSidebar();
+          renderGrid(true);
+          // Polling follows the selection, otherwise the timer would keep
+          // reading a range that is no longer on screen.
+          if (state.timer) {
+            restartPolling();
+          } else if (!scope.result) {
+            readActive();
+          }
+        }
+
+        // ---- config form: one range ----------------------------------------
         function renderConfig() {
           const scope = active();
           if (!scope) return;
@@ -1150,18 +1636,33 @@
             type: "text", value: scope.name || "", placeholder: scopeTitle(scope),
             onchange: (event) => {
               scope.name = event.target.value.trim();
-              persist();
+              persistScopes();
               renderScopeList();
             }
           }));
+          const deviceSelect = el("select", {
+            onchange: (event) => {
+              scope.deviceId = event.target.value;
+              persistScopes();
+              renderScopeList();
+              changedDefinition();
+            }
+          }, state.devices.map((device) => el("option", {
+            value: device.id, text: deviceLabel(device),
+            selected: device.id === scope.deviceId ? "selected" : null
+          })));
+          if (!state.devices.length) {
+            deviceSelect.disabled = true;
+            deviceSelect.appendChild(el("option", { value: "", text: t.noDevice }));
+          }
+          formRow(identity, t.device, deviceSelect);
           configForm.appendChild(identity);
 
           // ---- address -------------------------------------------------------
           const addressSection = el("div", { class: "config-section" }, [
             el("div", { class: "title", text: t.groupAddress })
           ]);
-
-          const areaSelect = el("select", {
+          formRow(addressSection, t.area, el("select", {
             onchange: (event) => {
               scope.area = event.target.value;
               const cap = isBitArea(scope.area) ? 2000 : 125;
@@ -1170,57 +1671,44 @@
             }
           }, AREAS.map((value) => el("option", {
             value, text: areaLabel(value), selected: value === scope.area ? "selected" : null
-          })));
-          formRow(addressSection, t.area, areaSelect);
-
+          }))));
           formPair(
             addressSection,
             t.start, numberInput(scope, "start", 0, 65535, changedDefinition),
             t.quantity, numberInput(scope, "quantity", 1,
               isBitArea(scope.area) ? 2000 : 125, changedDefinition)
           );
-          formRow(addressSection, t.unit, numberInput(scope, "unitId", 0, 255, () => {
-            persist();
-            updateCounters();
-          }));
           configForm.appendChild(addressSection);
 
           // ---- interpretation ------------------------------------------------
           const formatSection = el("div", { class: "config-section" }, [
             el("div", { class: "title", text: t.groupFormat })
           ]);
-
           const dataTypeSelect = el("select", {
             onchange: (event) => {
               scope.dataType = event.target.value;
-              // Word order only reorders words for values spanning four
-              // registers, so it is disabled for everything narrower.
               syncWordOrder();
               changedDisplay();
             }
           }, DATA_TYPES.map((value) => el("option", {
             value, text: value, selected: value === scope.dataType ? "selected" : null
           })));
-
           const byteOrderSelect = el("select", {
             title: t.displayOnly,
             onchange: (event) => { scope.byteOrder = event.target.value; changedDisplay(); }
           }, BYTE_ORDERS.map((value) => el("option", {
             value, text: value, selected: value === scope.byteOrder ? "selected" : null
           })));
-
           const wordOrderSelect = el("select", {
             onchange: (event) => { scope.wordOrder = event.target.value; changedDisplay(); }
           }, [["big", t.wordBig], ["little", t.wordLittle]].map(([value, label]) => el("option", {
             value, text: label, selected: value === scope.wordOrder ? "selected" : null
           })));
-
           const displaySelect = el("select", {
             onchange: (event) => { scope.format = event.target.value; changedDisplay(); }
           }, FORMATS.map((value) => el("option", {
             value, text: value, selected: value === scope.format ? "selected" : null
           })));
-
           formPair(formatSection, t.dataType, dataTypeSelect, t.byteOrder, byteOrderSelect);
           formPair(formatSection, t.wordOrder, wordOrderSelect, t.format, displaySelect);
           configForm.appendChild(formatSection);
@@ -1242,7 +1730,7 @@
             el("div", { class: "title", text: t.groupRead })
           ]);
           formRow(readSection, `${t.interval} (${t.ms})`, numberInput(scope, "intervalMs", 50, 600000, () => {
-            persist();
+            persistScopes();
             if (state.timer) restartPolling();
           }));
           configForm.appendChild(readSection);
@@ -1260,7 +1748,7 @@
             scope.result = null;
             scope.page = 0;
           }
-          persist();
+          persistScopes();
           renderScopeList();
           renderGrid(true);
           // A new range has nothing to show until it is read, and the user has
@@ -1269,21 +1757,21 @@
         }
 
         function changedDisplay() {
-          persist();
+          persistScopes();
           renderGrid();
         }
 
         // ---- reading --------------------------------------------------------
-        function scopeTask(scope) {
+        function scopeTask(scope, device) {
           const task = {
             area: scope.area,
             address: scope.start,
             quantity: scope.quantity,
-            unitId: scope.unitId,
+            // The unit lives on the device, but it is sent per read so editing
+            // it takes effect immediately instead of needing a reconnect.
+            unitId: Number(device.unitId) || 0,
             dataType: scope.dataType
           };
-          // Sent with the request so the backend decodes with exactly the
-          // settings on screen when the bytes were fetched.
           if (!isBitArea(scope.area)) {
             task.byteOrder = scope.byteOrder;
             task.wordOrder = scope.wordOrder;
@@ -1294,18 +1782,34 @@
         async function readActive() {
           const scope = active();
           if (!scope || state.busy) return;
+          const device = deviceOf(scope);
+          if (!device) {
+            renderHeaderDevice();
+            return;
+          }
+          if (device.status !== "open") {
+            // The first read of a device is also the thing that connects it.
+            const opened = await openDevice(device, { quiet: true });
+            if (!opened) return;
+          }
           state.busy = true;
+          const started = Date.now();
           try {
             const response = await invoke("modbus/read", {
-              connectionId, tasks: [scopeTask(scope)]
+              connectionId: sessionId(device), tasks: [scopeTask(scope, device)]
             }, 20000);
             const result = (response.results || [])[0] || { ok: false, error: "no result" };
+            const durationMs = Date.now() - started;
             state.tx += 1;
             if (result.ok === false) {
               state.err += 1;
               scope.result = { registers: [], values: [], error: result.error || "error", at: new Date() };
+              logRead(scope, device, false, result.error || "error", durationMs);
+              noteTransportFailure(device, result.error);
               toast(result.error || "Read failed", "error");
             } else {
+              logRead(scope, device, true,
+                `${(result.registers || result.values || []).length} ${t.items}`, durationMs);
               scope.result = {
                 registers: result.registers || [],
                 values: result.values || [],
@@ -1320,6 +1824,8 @@
             state.tx += 1;
             state.err += 1;
             scope.result = { registers: [], values: [], error: errorText(error), at: new Date() };
+            logRead(scope, device, false, errorText(error), Date.now() - started);
+            noteTransportFailure(device, errorText(error));
             updateCounters();
             renderScopeList();
             renderGrid();
@@ -1329,9 +1835,104 @@
           }
         }
 
+        /**
+         * A read that failed at the transport level means the session is gone,
+         * not that the address was wrong, so the device goes to error and the
+         * reconnect loop takes over.
+         */
+        function noteTransportFailure(device, message) {
+          if (!device || !isTransportError(message)) return;
+          if (device.status === "error") return;
+          device.status = "error";
+          device.latencyMs = null;
+          device.error = String(message || "");
+          syncDeviceState();
+          scheduleReconnect(device);
+        }
+
         function updateCounters() {
           sTx.set(String(state.tx));
           sErr.set(String(state.err), state.err ? "bad" : null);
+        }
+
+        // ---- read log -------------------------------------------------------
+        const LOG_LIMIT = 200;
+
+        function toggleLog(force) {
+          state.logOpen = force === undefined ? !state.logOpen : Boolean(force);
+          logPanel.style.display = state.logOpen ? "" : "none";
+          logButton.setAttribute("aria-pressed", String(state.logOpen));
+          if (state.logOpen) renderLog();
+        }
+
+        /**
+         * Records one read result. Repeats of the same outcome collapse into the
+         * newest row, so a one-second poll does not bury every other event while
+         * the first occurrence of a new failure still gets its own line.
+         */
+        function logRead(scope, device, ok, message, durationMs) {
+          const entry = {
+            at: new Date(),
+            deviceId: device ? device.id : "",
+            device: deviceLabel(device),
+            range: `${formatAddress(scope.start)}–${formatAddress(scope.start + Math.max(1, scope.quantity) - 1)}`,
+            ok: Boolean(ok),
+            message: String(message || ""),
+            durationMs: Math.max(0, Number(durationMs) || 0),
+            count: 1
+          };
+          const last = state.log[0];
+          if (last && last.ok === entry.ok && last.message === entry.message
+              && last.deviceId === entry.deviceId && last.range === entry.range) {
+            last.at = entry.at;
+            last.durationMs = entry.durationMs;
+            last.count += 1;
+          } else {
+            state.log.unshift(entry);
+            if (state.log.length > LOG_LIMIT) state.log.length = LOG_LIMIT;
+          }
+          renderLog();
+        }
+
+        function timeOf(date) {
+          const pad = (value) => String(value).padStart(2, "0");
+          return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+        }
+
+        function renderLog() {
+          logCount.textContent = state.log.length ? `${state.log.length} ${t.logCount}` : "";
+          logButton.textContent = state.log.length
+            ? `${t.logButton} ${state.log.length}`
+            : t.logButton;
+          // The rows are only worth building while the drawer is open.
+          if (!state.logOpen) {
+            logRows.textContent = "";
+            return;
+          }
+          logRows.textContent = "";
+          if (!state.log.length) {
+            logRows.appendChild(el("div", { class: "log-empty", text: t.logEmpty }));
+            return;
+          }
+          for (const entry of state.log) {
+            const row = el("div", {
+              class: "log-row" + (entry.ok ? "" : " failed"),
+              title: entry.message || ""
+            });
+            row.appendChild(el("span", { class: "t", text: timeOf(entry.at) }));
+            row.appendChild(el("span", { class: "dev", text: entry.device }));
+            row.appendChild(el("span", { class: "rng", text: entry.range }));
+            row.appendChild(el("span", {
+              class: "res " + (entry.ok ? "ok" : "bad"),
+              text: entry.ok ? t.logOk : t.logFailed
+            }));
+            row.appendChild(el("span", { class: "msg", text: entry.message }));
+            row.appendChild(el("span", {
+              class: "d",
+              text: entry.count > 1 ? `${entry.durationMs} ms ×${entry.count}` : `${entry.durationMs} ms`
+            }));
+            logRows.appendChild(row);
+          }
         }
 
         // ---- paging ---------------------------------------------------------
@@ -1352,12 +1953,11 @@
           scope[key] = value;
           if (input) input.value = String(value);
           scope.page = 0;
-          persist();
+          persistScopes();
           renderGrid(true);
           syncLayoutInputs();
         }
 
-        /** Keeps the header controls in step with the selected configuration. */
         function syncLayoutInputs() {
           const scope = active();
           if (!scope) return;
@@ -1381,25 +1981,23 @@
 
           const rangeStart = scope.start + first;
           const rangeEnd = rangeStart + shown - 1;
-          // With more than one page the count shows what is visible out of the
-          // whole range, so a page never looks like the full read.
           const countText = pages > 1 ? `${shown} / ${total} ${t.items}` : `${total} ${t.items}`;
           rangeLabel.textContent = `${formatAddress(rangeStart)} – ${formatAddress(rangeEnd)} · ${countText}`;
 
-          // The pager is a display control, so it only appears when the range
-          // does not fit on one page.
           pager.style.display = pages > 1 ? "" : "none";
           pageInfo.textContent = pages > 1 ? `${scope.page + 1} / ${pages}` : "";
           prevButton.disabled = scope.page <= 0;
           nextButton.disabled = scope.page >= pages - 1;
 
-          // Errors are a property of the request, not of any single address, so
-          // they get one bar rather than being repeated in every cell.
-          const error = scope.result && scope.result.error;
+          // A device that cannot be reached explains an empty grid better than
+          // the last read error does, so it takes precedence.
+          const device = deviceOf(scope);
+          const deviceDown = device && device.status === "error"
+            ? `${deviceLabel(device)} · ${device.error || t.deviceError}`
+            : "";
+          const error = deviceDown || (scope.result && scope.result.error) || "";
           errorBar.style.display = error ? "" : "none";
-          errorBar.textContent = error || "";
-          // Until the range has been read the footnote explains why the cells
-          // are blank, instead of repeating the write instructions.
+          errorBar.textContent = error;
           footnote.textContent = scope.result ? t.writeHint : t.emptyTable;
 
           renderDecoded(scope);
@@ -1413,9 +2011,6 @@
           valueGrid.textContent = "";
           cellCache = { key, cells: [] };
 
-          // Cells are drawn for the whole page whether or not it has been read,
-          // so changing the origin or the layout shows the new addresses at once
-          // and an unread range is still legible as "these are the addresses".
           for (let offset = 0; offset < shown; offset += 1) {
             const index = first + offset;
             const address = scope.start + index;
@@ -1432,8 +2027,7 @@
               const rawCell = el("span", { class: "r" });
               cell.appendChild(rawCell);
 
-              const writable = scope.area === "coil";
-              if (writable) {
+              if (scope.area === "coil") {
                 holder.title = `${formatAddress(address)} · ${t.writeHint}`;
                 holder.addEventListener("dblclick", () => writeCell(scope, address));
               } else {
@@ -1447,8 +2041,7 @@
               const rawCell = el("span", { class: "r" });
               cell.appendChild(rawCell);
 
-              const writable = scope.area === "holding";
-              if (writable) {
+              if (scope.area === "holding") {
                 holder.title = `${formatAddress(address)} · ${scope.dataType} · ${t.writeHint}`;
                 holder.addEventListener("dblclick", () => writeCell(scope, address));
               } else {
@@ -1462,7 +2055,6 @@
           updateCells(scope, first);
         }
 
-        /** Writes current values into the existing cell nodes. */
         function updateCells(scope, first) {
           const bit = isBitArea(scope.area);
           const result = scope.result;
@@ -1502,6 +2094,8 @@
 
         // ---- writing --------------------------------------------------------
         async function writeCell(scope, address) {
+          const device = deviceOf(scope);
+          if (!device) return;
           const bit = isBitArea(scope.area);
           const index = address - scope.start;
           const existing = scope.result
@@ -1514,8 +2108,8 @@
             placeholder: bit ? "true / false" : scope.dataType
           });
           const payload = [
-            `${t[scope.area] || scope.area} @ ${formatAddress(address)}`,
-            `unit ${scope.unitId}`,
+            `${deviceLabel(device)} · ${t[scope.area] || scope.area} @ ${formatAddress(address)}`,
+            `${t.unit} ${device.unitId}`,
             bit ? "" : scope.dataType
           ].filter(Boolean).join(" · ");
 
@@ -1528,7 +2122,7 @@
           if (confirmed === null) return;
 
           try {
-            const entry = { area: scope.area, address, unitId: scope.unitId };
+            const entry = { area: scope.area, address, unitId: Number(device.unitId) || 0 };
             if (bit) {
               const text = String(field.value).trim().toLowerCase();
               entry.value = !(text === "false" || text === "0");
@@ -1542,7 +2136,9 @@
                 return;
               }
             }
-            const response = await invoke("modbus/write", { connectionId, writes: [entry] }, 20000);
+            const response = await invoke("modbus/write", {
+              connectionId: sessionId(device), writes: [entry]
+            }, 20000);
             const result = (response.results || [])[0];
             state.tx += 1;
             if (result && result.ok) {
@@ -1551,9 +2147,11 @@
             } else {
               state.err += 1;
               updateCounters();
+              noteTransportFailure(device, result && result.error);
               toast((result && result.error) || "Write failed", "error");
             }
           } catch (error) {
+            noteTransportFailure(device, errorText(error));
             toast(errorText(error), "error");
           }
         }
@@ -1587,14 +2185,17 @@
 
         // ---- boot -----------------------------------------------------------
         (async () => {
-          const saved = await readStorage(storageKey);
+          const savedScopes = await readStorage(scopeKey);
+          const savedDevices = await readStorage(deviceKey);
+
+          let devices = Array.isArray(savedDevices)
+            ? savedDevices.filter((entry) => entry && entry.host).map((entry) => newDevice(entry))
+            : [];
           let scopes = [];
 
-          if (saved && Array.isArray(saved.scopes) && saved.scopes.length) {
-            scopes = saved.scopes.map((entry) => newScope(entry));
+          if (savedScopes && Array.isArray(savedScopes.scopes) && savedScopes.scopes.length) {
+            scopes = savedScopes.scopes.map((entry) => newScope(entry));
           } else {
-            // Bring across the single-scope definition written by earlier
-            // versions, so an existing workbench does not come up blank.
             const legacy = await readStorage(legacyKey);
             if (legacy && typeof legacy === "object" && !Array.isArray(legacy)) {
               scopes = [newScope(legacy)];
@@ -1602,30 +2203,98 @@
           }
           if (!scopes.length) scopes = [newScope()];
 
-          state.scopes = scopes;
-          state.activeId = (saved && saved.activeId && scopes.some((scope) => scope.id === saved.activeId))
-            ? saved.activeId
-            : scopes[0].id;
+          // A workbench on a saved connection starts with that endpoint as its
+          // first device, so the IP never has to be typed twice.
+          if (!devices.length) {
+            let seed = null;
+            try {
+              seed = await invoke("modbus/connection_info", { connectionId }, 10000);
+            } catch (error) {
+              seed = null;
+            }
+            const legacyUnit = scopes.find((scope) => scope.unitId !== undefined)?.unitId;
+            if (seed && seed.host) {
+              devices = [newDevice({
+                name: seed.host,
+                host: seed.host,
+                port: Number(seed.port) || 502,
+                unitId: Number(legacyUnit ?? seed.unitId) || 1,
+                timeoutMs: 3000
+              })];
+            }
+          }
+          if (!devices.length) {
+            // Nothing to seed from: offer an empty device so the form is usable.
+            devices = [newDevice({ name: "", host: "", port: 502, unitId: 1 })];
+          }
 
-          // Older scopes were saved without an id or the layout fields; fill
-          // them in so every scope has the same shape.
-          for (const scope of state.scopes) {
-            if (!scope.id) scope.id = newScope().id;
+          state.devices = devices;
+          state.selectedDeviceId = devices[0].id;
+
+          // Ranges from before devices existed carry their own unit id. They
+          // are attached to the first device, which inherits that unit so the
+          // read still goes to the right slave.
+          const orphanUnit = scopes.find((scope) => scope.unitId !== undefined)?.unitId;
+          if (orphanUnit !== undefined && devices.length === 1) {
+            devices[0].unitId = Number(orphanUnit);
+          }
+          for (const scope of scopes) {
+            if (!scope.deviceId || !devices.some((device) => device.id === scope.deviceId)) {
+              scope.deviceId = devices[0].id;
+            }
             if (!Number(scope.columns)) scope.columns = SCOPE_DEFAULTS.columns;
             if (!Number(scope.rows)) scope.rows = SCOPE_DEFAULTS.rows;
             if (!Number.isFinite(Number(scope.page))) scope.page = 0;
+            // Retired field: the unit belongs to the device now.
+            delete scope.unitId;
           }
-          if (!state.scopes.some((scope) => scope.id === state.activeId)) state.activeId = state.scopes[0].id;
+          state.scopes = scopes;
+          state.activeId = (savedScopes && savedScopes.activeId
+            && scopes.some((scope) => scope.id === savedScopes.activeId))
+            ? savedScopes.activeId
+            : scopes[0].id;
 
+          persistDevices();
+          persistScopes();
           updateCounters();
-          renderScopeList();
-          renderConfig();
-          syncLayoutInputs();
-          renderGrid(true);
-          readActive();
+          renderSidebar();
+          renderHeaderDevice();
+
+          // Reuse sessions the backend already holds (a UI reload keeps them),
+          // then open the rest — the active one first so the grid fills fast.
+          let open = new Set();
+          try {
+            const listing = await invoke("modbus/devices", {}, 10000);
+            open = new Set((listing.devices || []).map((entry) => entry.deviceId));
+          } catch (error) {
+            open = new Set();
+          }
+          const ordered = [...state.devices].sort((a, b) => {
+            const scope = active();
+            const wanted = scope ? scope.deviceId : "";
+            return (b.id === wanted ? 1 : 0) - (a.id === wanted ? 1 : 0);
+          });
+          for (const device of ordered) {
+            if (!device.host) continue;
+            if (open.has(device.id)) {
+              device.status = "open";
+              syncDeviceState();
+            } else {
+              const ok = await openDevice(device, { quiet: true });
+              if (!ok) continue;
+            }
+            const scope = active();
+            if (scope && device.id === scope.deviceId && !scope.result) {
+              await readActive();
+            }
+          }
+          if (!deviceOf(active()) || deviceOf(active()).status !== "open") readActive();
         })();
 
-        window.addEventListener("beforeunload", () => { if (state.timer) clearInterval(state.timer); });
+        window.addEventListener("beforeunload", () => {
+          if (state.timer) clearInterval(state.timer);
+          for (const device of state.devices) clearTimeout(device.retryTimer);
+        });
       }
 
       // ---------------------------------------------------------------------
