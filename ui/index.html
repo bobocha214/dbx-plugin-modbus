@@ -198,22 +198,32 @@
       .scope-item:hover .scope-del { opacity: 1; }
 
       /* ------------------------------------------------------- config form */
-      .config { flex: 1; min-height: 0; overflow: auto; padding: 10px 12px 16px; }
-      .config-section + .config-section { margin-top: 14px; }
+      /* A narrow column of settings: sections divided by a hairline so the
+         grouping is visible without boxes, and paired controls sharing a row
+         where the two settings belong together. */
+      .config { flex: 1; min-height: 0; overflow: auto; padding: 12px 13px 20px; }
+      .config-section + .config-section {
+        margin-top: 15px; padding-top: 14px;
+        border-top: var(--dbx-line);
+      }
       .config-section > .title {
         font-size: 10px; font-weight: 600; letter-spacing: .07em;
         text-transform: uppercase; color: var(--dbx-muted-fg);
-        margin-bottom: 7px;
+        margin-bottom: 8px;
       }
-      .form-row { display: flex; flex-direction: column; gap: 4px; }
+      .form-row { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
       .form-row + .form-row { margin-top: 9px; }
-      .form-row > label { font-size: 11.5px; color: var(--dbx-muted-fg); }
+      .form-row > label {
+        font-size: 11.5px; color: var(--dbx-muted-fg);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
       .form-row > input, .form-row > select { width: 100%; height: 30px; }
       /* Two controls sharing a row, as start/quantity naturally pair. */
-      .form-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+      .form-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 9px; }
       .form-pair .form-row + .form-row { margin-top: 0; }
       .config .note {
-        margin-top: 9px; font-size: 11px; line-height: 1.5; color: var(--dbx-muted-fg);
+        margin-top: 8px; font-size: 11px; line-height: 1.5;
+        color: var(--dbx-muted-fg); font-family: var(--dbx-mono);
       }
 
       /* ----------------------------------------------------------- content */
@@ -255,30 +265,71 @@
         font-size: 10.5px; font-weight: 600; letter-spacing: .06em;
         text-transform: uppercase; color: var(--dbx-muted-fg);
       }
-      tbody tr { border-bottom: 1px solid color-mix(in srgb, var(--dbx-border) 60%, transparent); }
-      tbody tr:hover { background: var(--dbx-muted); }
       tbody td { border-bottom: 1px solid color-mix(in srgb, var(--dbx-border) 55%, transparent); }
-      /* Addresses are a fixed-width gutter, divided from the values so the eye
-         can run down either column on its own. The two data columns shrink to
-         their content and a trailing filler absorbs the rest, which keeps the
-         value next to its address instead of stranded across empty space. */
-      th.addr, td.addr {
-        width: 104px; text-align: right;
-        font-family: var(--dbx-mono); font-variant-numeric: tabular-nums;
-        color: var(--dbx-muted-fg); font-size: 12px;
-        border-right: 1px solid color-mix(in srgb, var(--dbx-border) 55%, transparent);
-      }
-      th.val, td.val {
-        width: 1%; white-space: nowrap;
-        font-family: var(--dbx-mono); font-variant-numeric: tabular-nums; font-size: 12.5px;
-      }
-      th.raw, td.raw {
-        width: 1%; white-space: nowrap;
-        font-family: var(--dbx-mono); font-variant-numeric: tabular-nums;
-        color: var(--dbx-muted-fg); font-size: 11.5px;
-      }
-      th.filler, td.filler { width: auto; }
+      tbody tr:hover { background: var(--dbx-muted); }
+      td.val { font-family: var(--dbx-mono); font-variant-numeric: tabular-nums; font-size: 12.5px; }
       td.note { color: var(--dbx-muted-fg); font-size: 11.5px; }
+
+      /* ------------------------------------------------- address/value grid */
+      /* One cell per address, laid out in as many columns as the configuration
+         asks for, so a wide window shows several registers per row instead of
+         one long list. */
+      .grid-wrap { flex: 1; min-height: 0; overflow: auto; }
+      .value-grid {
+        display: grid;
+        grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr));
+        gap: 5px; padding: 10px 12px 18px; align-content: start;
+      }
+      .av {
+        display: flex; align-items: baseline; gap: 7px;
+        min-width: 0; padding: 4px 8px;
+        border: 1px solid color-mix(in srgb, var(--dbx-border) 70%, transparent);
+        border-radius: var(--dbx-radius);
+        background: var(--dbx-card);
+      }
+      .av:hover {
+        background: var(--dbx-muted);
+        border-color: var(--dbx-border);
+      }
+      .av .a {
+        flex: none; font-family: var(--dbx-mono); font-size: 11px;
+        color: var(--dbx-muted-fg); font-variant-numeric: tabular-nums;
+      }
+      /* Inside a cell the value sits next to its address, while the hex is
+         right-aligned in a fixed gutter so it lines up down the grid. */
+      .av .cell-value {
+        margin: 0 0 0 2px; padding: 1px 4px; flex: none;
+        font-family: var(--dbx-mono); font-size: 12.5px; font-weight: 500;
+        font-variant-numeric: tabular-nums;
+      }
+      .av .cell-value.muted { color: var(--dbx-muted-fg); font-weight: 400; }
+      .av .r {
+        margin-left: auto; min-width: 50px; text-align: right;
+        flex: none; font-family: var(--dbx-mono); font-size: 10px;
+        color: var(--dbx-muted-fg); font-variant-numeric: tabular-nums;
+        overflow: hidden; text-overflow: ellipsis;
+      }
+
+      /* Paging controls, shown only when a range does not fit on one page. */
+      .pager { display: flex; align-items: center; gap: 1px; flex: none; }
+      .pager button { width: 24px; height: 24px; padding: 0; font-size: 13px; }
+      .pager .page-info {
+        min-width: 46px; text-align: center;
+        font-family: var(--dbx-mono); font-size: 11.5px;
+        font-variant-numeric: tabular-nums; color: var(--dbx-muted-fg);
+      }
+
+      /* How many cells per row and per page. These are view controls, so they
+         live beside the data rather than buried in the configuration form. */
+      .view-controls {
+        display: flex; align-items: center; gap: 6px; flex: none;
+        padding-left: 10px; border-left: var(--dbx-line);
+      }
+      .view-controls label {
+        display: inline-flex; align-items: center; gap: 4px;
+        font-size: 11px; color: var(--dbx-muted-fg); white-space: nowrap;
+      }
+      .view-controls input { width: 44px; height: 26px; padding: 0 4px; text-align: center; }
       .muted { color: var(--dbx-muted-fg); }
       .bad { color: var(--dbx-destructive); }
       .good { color: var(--dbx-success); }
@@ -473,6 +524,8 @@
           decoded: "Decoded", addresses: "Addresses and values", items: "items",
           groupAddress: "Address", groupFormat: "Interpretation", groupRead: "Reading",
           nameLabel: "Name", on: "ON", off: "OFF",
+          columns: "Columns", rows: "Rows",
+          prevPage: "Previous page", nextPage: "Next page",
           holding: "Holding", input: "Input", coil: "Coil", discrete: "Discrete",
           readOnlyArea: "read-only"
         },
@@ -509,6 +562,8 @@
           decoded: "解析值", addresses: "地址与值", items: "项",
           groupAddress: "地址", groupFormat: "解析方式", groupRead: "读取",
           nameLabel: "名称", on: "ON", off: "OFF",
+          columns: "列数", rows: "行数",
+          prevPage: "上一页", nextPage: "下一页",
           holding: "保持寄存器", input: "输入寄存器", coil: "线圈", discrete: "离散输入",
           readOnlyArea: "只读"
         }
@@ -808,29 +863,46 @@
       }
 
       // One configuration per range. Each remembers what it last read, so
-      // switching between them does not blank the table.
+      // switching between them does not blank the display.
       const SCOPE_DEFAULTS = {
-        area: "holding", start: 0, quantity: 16, unitId: 1,
+        area: "holding", start: 0, quantity: 32, unitId: 1,
         dataType: "uint16", byteOrder: "ABCD", wordOrder: "big",
-        format: "unsigned", intervalMs: 1000, name: ""
+        format: "unsigned", intervalMs: 1000, name: "",
+        // How the values are laid out. Columns × rows is one page; a range
+        // larger than that is paged rather than scrolled, so the same number of
+        // addresses is always visible while polling.
+        columns: 4, rows: 8
       };
       // Exactly the definition keys: everything a read produced is excluded.
+      // `page` is deliberately absent — where you are looking is not a setting.
       const SCOPE_KEYS = ["id", ...Object.keys(SCOPE_DEFAULTS)];
+      const MAX_COLUMNS = 6;
+      const MAX_ROWS = 50;
 
       function newScope(patch) {
         return {
           id: Math.random().toString(36).slice(2, 10),
           result: null,
+          page: 0,
           ...SCOPE_DEFAULTS,
           ...(patch || {})
         };
       }
 
-      /** "Holding 0 – 15" when the user has not named the range themselves. */
+      /** "Holding 0 – 31" when the user has not named the range themselves. */
       function scopeTitle(scope) {
         if (scope.name && scope.name.trim()) return scope.name.trim();
         const end = scope.start + Math.max(1, scope.quantity) - 1;
         return `${t[scope.area] || scope.area} ${scope.start} – ${end}`;
+      }
+
+      /** Cells one page can hold. */
+      function pageCapacity(scope) {
+        return Math.max(1, Number(scope.columns) || 1) * Math.max(1, Number(scope.rows) || 1);
+      }
+
+      function pageCount(scope) {
+        return Math.max(1, Math.ceil(Math.max(1, scope.quantity) / pageCapacity(scope)));
       }
 
       function createModbusWorkbench(root) {
@@ -867,13 +939,37 @@
         const sidebar = el("aside", { class: "sidebar" }, [sidebarHead, scopeList, configForm]);
 
         // ---- content: only addresses and values -----------------------------
-        const tableHead = el("thead");
-        const tableBody = el("tbody");
-        const table = el("table", {}, [tableHead, tableBody]);
-        const tableWrap = el("div", { class: "table-wrap" }, [table]);
+        const valueGrid = el("div", { class: "value-grid" });
+        const gridWrap = el("div", { class: "grid-wrap" }, [valueGrid]);
         const errorBar = el("div", { class: "error-bar", style: "display:none" });
 
         const rangeLabel = el("span", { class: "count" });
+        const pageInfo = el("span", { class: "page-info" });
+        const prevButton = el("button", {
+          class: "icon ghost", text: "‹", title: t.prevPage,
+          onclick: () => turnPage(-1)
+        });
+        const nextButton = el("button", {
+          class: "icon ghost", text: "›", title: t.nextPage,
+          onclick: () => turnPage(1)
+        });
+        const pager = el("div", { class: "pager" }, [prevButton, pageInfo, nextButton]);
+
+        // Columns and rows decide how much is visible at once, so they sit with
+        // the data instead of in the read definition.
+        const columnsInput = el("input", {
+          type: "number", min: "1", max: String(MAX_COLUMNS), title: t.columns,
+          onchange: (event) => setLayout("columns", event.target.value, 1, MAX_COLUMNS, event.target)
+        });
+        const rowsInput = el("input", {
+          type: "number", min: "1", max: String(MAX_ROWS), title: t.rows,
+          onchange: (event) => setLayout("rows", event.target.value, 1, MAX_ROWS, event.target)
+        });
+        const viewControls = el("div", { class: "view-controls" }, [
+          el("label", {}, [el("span", { text: t.columns }), columnsInput]),
+          el("label", {}, [el("span", { text: t.rows }), rowsInput])
+        ]);
+
         const decodedLabel = el("span", { class: "k", text: t.decoded });
         const decodedValue = el("span", { class: "v" });
         const decodedMeta = el("span", { class: "m" });
@@ -885,6 +981,8 @@
             rangeLabel
           ]),
           el("span", { class: "spacer" }),
+          viewControls,
+          pager,
           decodedBox
         ]);
 
@@ -892,16 +990,16 @@
         const footnote = el("div", { class: "hint", text: t.writeHint });
 
         const content = el("section", { class: "content" }, [
-          contentHead, errorBar, tableWrap, footnote
+          contentHead, errorBar, gridWrap, footnote
         ]);
 
         root.appendChild(sidebar);
         root.appendChild(createSplitter(root, sidebar, content));
         root.appendChild(content);
 
-        // Row nodes are kept when only values change, so a 2000-bit range does
-        // not rebuild its whole table on every poll tick.
-        let rowCache = { key: "", rows: [] };
+        // Cell nodes are kept when only values change, so a paged 2000-bit range
+        // does not rebuild its page on every poll tick.
+        let cellCache = { key: "", cells: [] };
 
         // ---- persistence ----------------------------------------------------
         function persist() {
@@ -925,7 +1023,9 @@
                 byteOrder: current.byteOrder,
                 wordOrder: current.wordOrder,
                 format: current.format,
-                intervalMs: current.intervalMs
+                intervalMs: current.intervalMs,
+                columns: current.columns,
+                rows: current.rows
               }
             : {};
           const scope = newScope(patch);
@@ -934,7 +1034,8 @@
           persist();
           renderScopeList();
           renderConfig();
-          renderTable(true);
+          syncLayoutInputs();
+          renderGrid(true);
           readActive();
         }
 
@@ -951,7 +1052,8 @@
           persist();
           renderScopeList();
           renderConfig();
-          renderTable(true);
+          syncLayoutInputs();
+          renderGrid(true);
           // Land on a range that actually has something to show.
           const next = active();
           if (next && !next.result) readActive();
@@ -963,14 +1065,15 @@
           persist();
           renderScopeList();
           renderConfig();
-          renderTable(true);
+          syncLayoutInputs();
+          renderGrid(true);
           // Polling follows the selection, otherwise the timer would keep
           // reading a range that is no longer on screen.
           if (state.timer) {
             restartPolling();
           } else if (!scope.result) {
             // Switching to a range is a request to see it, so load it rather
-            // than showing an empty table and making the user press Read.
+            // than showing an empty page and making the user press Read.
             readActive();
           }
         }
@@ -990,9 +1093,7 @@
               }
             });
 
-            const dotState = scope.result
-              ? (scope.result.error ? "bad" : "ok")
-              : "";
+            const dotState = scope.result ? (scope.result.error ? "bad" : "ok") : "";
             item.appendChild(el("span", { class: "scope-dot " + dotState }));
             item.appendChild(el("div", { class: "scope-body" }, [
               el("span", { class: "scope-name", text: scopeTitle(scope), title: scopeTitle(scope) }),
@@ -1010,12 +1111,32 @@
         }
 
         // ---- config form ----------------------------------------------------
-        /** A labelled control row, appending to whichever section is given. */
-        function formRow(parent, label, control, title) {
+        /** A labelled control row, appended to whichever section is given. */
+        function formRow(parent, label, control) {
           parent.appendChild(el("div", { class: "form-row" }, [
-            el("label", { text: label, title: title || null }),
+            el("label", { text: label }),
             control
           ]));
+        }
+
+        /** Two labelled controls side by side, for naturally paired settings. */
+        function formPair(parent, leftLabel, leftControl, rightLabel, rightControl) {
+          parent.appendChild(el("div", { class: "form-pair" }, [
+            el("div", { class: "form-row" }, [el("label", { text: leftLabel }), leftControl]),
+            el("div", { class: "form-row" }, [el("label", { text: rightLabel }), rightControl])
+          ]));
+        }
+
+        function numberInput(scope, key, min, max, onDone) {
+          return el("input", {
+            type: "number", min: String(min), max: String(max), value: String(scope[key]),
+            onchange: (event) => {
+              const value = Math.max(min, Math.min(max, Number(event.target.value) || min));
+              scope[key] = value;
+              event.target.value = String(value);
+              onDone();
+            }
+          });
         }
 
         function renderConfig() {
@@ -1023,20 +1144,19 @@
           if (!scope) return;
           configForm.textContent = "";
 
-          // Identity
-          const nameInput = el("input", {
+          // ---- identity ------------------------------------------------------
+          const identity = el("div", { class: "config-section" });
+          formRow(identity, t.nameLabel, el("input", {
             type: "text", value: scope.name || "", placeholder: scopeTitle(scope),
             onchange: (event) => {
               scope.name = event.target.value.trim();
               persist();
               renderScopeList();
             }
-          });
-          const identity = el("div", { class: "config-section" });
-          formRow(identity, t.nameLabel, nameInput);
+          }));
           configForm.appendChild(identity);
 
-          // ---- address ------------------------------------------------------
+          // ---- address -------------------------------------------------------
           const addressSection = el("div", { class: "config-section" }, [
             el("div", { class: "title", text: t.groupAddress })
           ]);
@@ -1053,42 +1173,19 @@
           })));
           formRow(addressSection, t.area, areaSelect);
 
-          const startInput = el("input", {
-            type: "number", min: "0", max: "65535", value: String(scope.start),
-            onchange: (event) => {
-              scope.start = Math.max(0, Math.min(65535, Number(event.target.value) || 0));
-              event.target.value = String(scope.start);
-              changedDefinition();
-            }
-          });
-          const quantityInput = el("input", {
-            type: "number", min: "1", max: String(isBitArea(scope.area) ? 2000 : 125),
-            value: String(scope.quantity),
-            onchange: (event) => {
-              const cap = isBitArea(scope.area) ? 2000 : 125;
-              scope.quantity = Math.max(1, Math.min(cap, Number(event.target.value) || 1));
-              event.target.value = String(scope.quantity);
-              changedDefinition();
-            }
-          });
-          addressSection.appendChild(el("div", { class: "form-pair" }, [
-            el("div", { class: "form-row" }, [el("label", { text: t.start }), startInput]),
-            el("div", { class: "form-row" }, [el("label", { text: t.quantity }), quantityInput])
-          ]));
-
-          const unitInput = el("input", {
-            type: "number", min: "0", max: "255", value: String(scope.unitId),
-            onchange: (event) => {
-              scope.unitId = Math.max(0, Math.min(255, Number(event.target.value) || 0));
-              event.target.value = String(scope.unitId);
-              persist();
-              updateCounters();
-            }
-          });
-          formRow(addressSection, t.unit, unitInput);
+          formPair(
+            addressSection,
+            t.start, numberInput(scope, "start", 0, 65535, changedDefinition),
+            t.quantity, numberInput(scope, "quantity", 1,
+              isBitArea(scope.area) ? 2000 : 125, changedDefinition)
+          );
+          formRow(addressSection, t.unit, numberInput(scope, "unitId", 0, 255, () => {
+            persist();
+            updateCounters();
+          }));
           configForm.appendChild(addressSection);
 
-          // ---- interpretation ----------------------------------------------
+          // ---- interpretation ------------------------------------------------
           const formatSection = el("div", { class: "config-section" }, [
             el("div", { class: "title", text: t.groupFormat })
           ]);
@@ -1104,7 +1201,6 @@
           }, DATA_TYPES.map((value) => el("option", {
             value, text: value, selected: value === scope.dataType ? "selected" : null
           })));
-          formRow(formatSection, t.dataType, dataTypeSelect);
 
           const byteOrderSelect = el("select", {
             title: t.displayOnly,
@@ -1112,22 +1208,21 @@
           }, BYTE_ORDERS.map((value) => el("option", {
             value, text: value, selected: value === scope.byteOrder ? "selected" : null
           })));
+
           const wordOrderSelect = el("select", {
             onchange: (event) => { scope.wordOrder = event.target.value; changedDisplay(); }
           }, [["big", t.wordBig], ["little", t.wordLittle]].map(([value, label]) => el("option", {
             value, text: label, selected: value === scope.wordOrder ? "selected" : null
           })));
-          formatSection.appendChild(el("div", { class: "form-pair" }, [
-            el("div", { class: "form-row" }, [el("label", { text: t.byteOrder }), byteOrderSelect]),
-            el("div", { class: "form-row" }, [el("label", { text: t.wordOrder }), wordOrderSelect])
-          ]));
 
-          const formatSelect = el("select", {
+          const displaySelect = el("select", {
             onchange: (event) => { scope.format = event.target.value; changedDisplay(); }
           }, FORMATS.map((value) => el("option", {
             value, text: value, selected: value === scope.format ? "selected" : null
           })));
-          formRow(formatSection, t.format, formatSelect);
+
+          formPair(formatSection, t.dataType, dataTypeSelect, t.byteOrder, byteOrderSelect);
+          formPair(formatSection, t.wordOrder, wordOrderSelect, t.format, displaySelect);
           configForm.appendChild(formatSection);
 
           function syncWordOrder() {
@@ -1138,44 +1233,44 @@
           }
           syncWordOrder();
 
-          // ---- reading ------------------------------------------------------
+          // Columns and rows live in the content header, next to the data they
+          // arrange, so the form stays about what is read rather than how it is
+          // shown.
+
+          // ---- reading -------------------------------------------------------
           const readSection = el("div", { class: "config-section" }, [
             el("div", { class: "title", text: t.groupRead })
           ]);
-          const intervalInput = el("input", {
-            type: "number", min: "50", step: "50", value: String(scope.intervalMs),
-            onchange: (event) => {
-              scope.intervalMs = Math.max(50, Number(event.target.value) || 1000);
-              event.target.value = String(scope.intervalMs);
-              persist();
-              if (state.timer) restartPolling();
-            }
-          });
-          formRow(readSection, `${t.interval} (${t.ms})`, intervalInput);
+          formRow(readSection, `${t.interval} (${t.ms})`, numberInput(scope, "intervalMs", 50, 600000, () => {
+            persist();
+            if (state.timer) restartPolling();
+          }));
           configForm.appendChild(readSection);
-
-          // The decoded value of the range is not repeated here: it is shown in
-          // the table header, which is always on screen and does not require
-          // scrolling the form to see.
         }
 
         /**
          * Changing which addresses are read invalidates what is on screen.
          * Changing only how they are interpreted does not: the registers that
-         * came back are still correct, so the table is re-rendered rather than
+         * came back are still correct, so the grid is re-rendered rather than
          * emptied, and byte order takes effect without another request.
          */
         function changedDefinition() {
           const scope = active();
-          if (scope) scope.result = null;
+          if (scope) {
+            scope.result = null;
+            scope.page = 0;
+          }
           persist();
           renderScopeList();
-          renderTable(true);
+          renderGrid(true);
+          // A new range has nothing to show until it is read, and the user has
+          // just asked for it. Polling will pick it up on the next tick.
+          if (!state.timer) readActive();
         }
 
         function changedDisplay() {
           persist();
-          renderTable();
+          renderGrid();
         }
 
         // ---- reading --------------------------------------------------------
@@ -1220,14 +1315,14 @@
             }
             updateCounters();
             renderScopeList();
-            renderTable();
+            renderGrid();
           } catch (error) {
             state.tx += 1;
             state.err += 1;
             scope.result = { registers: [], values: [], error: errorText(error), at: new Date() };
             updateCounters();
             renderScopeList();
-            renderTable();
+            renderGrid();
             toast(errorText(error), "error");
           } finally {
             state.busy = false;
@@ -1239,114 +1334,152 @@
           sErr.set(String(state.err), state.err ? "bad" : null);
         }
 
-        // ---- the address/value table ----------------------------------------
-        function renderTable(force) {
+        // ---- paging ---------------------------------------------------------
+        function turnPage(delta) {
+          const scope = active();
+          if (!scope) return;
+          const pages = pageCount(scope);
+          if (pages <= 1) return;
+          scope.page = (Math.min(pages - 1, Math.max(0, (scope.page || 0) + delta)));
+          renderGrid(true);
+        }
+
+        /** Columns and rows are display-only, so they never trigger a read. */
+        function setLayout(key, raw, min, max, input) {
+          const scope = active();
+          if (!scope) return;
+          const value = Math.max(min, Math.min(max, Number(raw) || min));
+          scope[key] = value;
+          if (input) input.value = String(value);
+          scope.page = 0;
+          persist();
+          renderGrid(true);
+          syncLayoutInputs();
+        }
+
+        /** Keeps the header controls in step with the selected configuration. */
+        function syncLayoutInputs() {
+          const scope = active();
+          if (!scope) return;
+          columnsInput.value = String(scope.columns);
+          rowsInput.value = String(scope.rows);
+        }
+
+        // ---- the address/value grid -----------------------------------------
+        function renderGrid(force) {
           const scope = active();
           if (!scope) return;
           const bit = isBitArea(scope.area);
-          const count = Math.max(1, scope.quantity);
-          const key = `${scope.area}:${scope.start}:${count}:${bit ? "b" : "r"}`;
+          const capacity = pageCapacity(scope);
+          const total = Math.max(1, scope.quantity);
+          const pages = pageCount(scope);
+          scope.page = Math.min(pages - 1, Math.max(0, Number(scope.page) || 0));
 
-          rangeLabel.textContent = `${formatAddress(scope.start)} – ${formatAddress(scope.start + count - 1)} · ${count} ${t.items}`;
+          const first = scope.page * capacity;
+          const shown = Math.min(capacity, total - first);
+          const key = `${scope.area}:${scope.start}:${total}:${bit ? "b" : "r"}:${scope.columns}:${scope.rows}:${scope.page}`;
+
+          const rangeStart = scope.start + first;
+          const rangeEnd = rangeStart + shown - 1;
+          // With more than one page the count shows what is visible out of the
+          // whole range, so a page never looks like the full read.
+          const countText = pages > 1 ? `${shown} / ${total} ${t.items}` : `${total} ${t.items}`;
+          rangeLabel.textContent = `${formatAddress(rangeStart)} – ${formatAddress(rangeEnd)} · ${countText}`;
+
+          // The pager is a display control, so it only appears when the range
+          // does not fit on one page.
+          pager.style.display = pages > 1 ? "" : "none";
+          pageInfo.textContent = pages > 1 ? `${scope.page + 1} / ${pages}` : "";
+          prevButton.disabled = scope.page <= 0;
+          nextButton.disabled = scope.page >= pages - 1;
 
           // Errors are a property of the request, not of any single address, so
-          // they get one bar rather than being repeated down every row.
+          // they get one bar rather than being repeated in every cell.
           const error = scope.result && scope.result.error;
           errorBar.style.display = error ? "" : "none";
           errorBar.textContent = error || "";
-          // Until the range has been read the footnote explains why the values
+          // Until the range has been read the footnote explains why the cells
           // are blank, instead of repeating the write instructions.
           footnote.textContent = scope.result ? t.writeHint : t.emptyTable;
 
           renderDecoded(scope);
 
-          if (!force && rowCache.key === key && rowCache.rows.length === count) {
-            updateRows(scope);
+          if (!force && cellCache.key === key && cellCache.cells.length === shown) {
+            updateCells(scope, first);
             return;
           }
 
-          tableHead.textContent = "";
-          const headRow = el("tr");
-          headRow.appendChild(el("th", { class: "addr", text: t.address }));
-          headRow.appendChild(el("th", { class: "val", text: bit ? t.state : t.value }));
-          headRow.appendChild(el("th", { class: "raw", text: bit ? "1 / 0" : t.raw }));
-          headRow.appendChild(el("th", { class: "filler" }));
-          tableHead.appendChild(headRow);
+          valueGrid.style.setProperty("--cols", String(Math.max(1, scope.columns)));
+          valueGrid.textContent = "";
+          cellCache = { key, cells: [] };
 
-          tableBody.textContent = "";
-          rowCache = { key, rows: [] };
-
-          // Rows are drawn for the whole configured range whether or not it has
-          // been read, so changing the origin shows the new addresses at once
+          // Cells are drawn for the whole page whether or not it has been read,
+          // so changing the origin or the layout shows the new addresses at once
           // and an unread range is still legible as "these are the addresses".
-          for (let offset = 0; offset < count; offset += 1) {
-            const address = scope.start + offset;
-            const tr = el("tr");
-            tr.appendChild(el("td", { class: "addr", text: formatAddress(address) }));
+          for (let offset = 0; offset < shown; offset += 1) {
+            const index = first + offset;
+            const address = scope.start + index;
+            const cell = el("div", { class: "av" });
+            cell.appendChild(el("span", { class: "a", text: formatAddress(address) }));
 
             if (bit) {
-              const valueCell = el("td", { class: "val" });
-              const span = el("span", { class: "bit" });
-              span.appendChild(el("i"));
-              span.appendChild(el("span", { class: "txt" }));
+              const bitState = el("span", { class: "bit" });
+              bitState.appendChild(el("i"));
+              bitState.appendChild(el("span", { class: "txt" }));
               const holder = el("span", { class: "cell-value" });
-              holder.appendChild(span);
-              valueCell.appendChild(holder);
-              tr.appendChild(valueCell);
-              const rawCell = el("td", { class: "raw" });
-              tr.appendChild(rawCell);
-              tr.appendChild(el("td", { class: "filler" }));
+              holder.appendChild(bitState);
+              cell.appendChild(holder);
+              const rawCell = el("span", { class: "r" });
+              cell.appendChild(rawCell);
 
               const writable = scope.area === "coil";
               if (writable) {
                 holder.title = `${formatAddress(address)} · ${t.writeHint}`;
-                holder.addEventListener("dblclick", () => writeCell(scope, address, null));
+                holder.addEventListener("dblclick", () => writeCell(scope, address));
               } else {
                 holder.classList.add("readonly");
                 holder.title = `${formatAddress(address)} · ${t.readOnlyArea}`;
               }
-              rowCache.rows.push({ valueCell, holder, span, rawCell, address });
+              cellCache.cells.push({ cell, holder, bit: bitState, rawCell, address });
             } else {
-              const valueCell = el("td", { class: "val" });
-              const holder = el("span", { class: "cell-value" });
-              valueCell.appendChild(holder);
-              tr.appendChild(valueCell);
-              const rawCell = el("td", { class: "raw" });
-              tr.appendChild(rawCell);
-              tr.appendChild(el("td", { class: "filler" }));
+              const holder = el("span", { class: "cell-value v" });
+              cell.appendChild(holder);
+              const rawCell = el("span", { class: "r" });
+              cell.appendChild(rawCell);
 
               const writable = scope.area === "holding";
               if (writable) {
                 holder.title = `${formatAddress(address)} · ${scope.dataType} · ${t.writeHint}`;
-                holder.addEventListener("dblclick", () => writeCell(scope, address, null));
+                holder.addEventListener("dblclick", () => writeCell(scope, address));
               } else {
                 holder.classList.add("readonly");
                 holder.title = `${formatAddress(address)} · ${t.readOnlyArea}`;
               }
-              rowCache.rows.push({ valueCell, holder, rawCell, address });
+              cellCache.cells.push({ cell, holder, rawCell, address });
             }
-            tableBody.appendChild(tr);
+            valueGrid.appendChild(cell);
           }
-          updateRows(scope);
+          updateCells(scope, first);
         }
 
-        /** Writes current values into the existing row nodes. */
-        function updateRows(scope) {
+        /** Writes current values into the existing cell nodes. */
+        function updateCells(scope, first) {
           const bit = isBitArea(scope.area);
           const result = scope.result;
-          for (let offset = 0; offset < rowCache.rows.length; offset += 1) {
-            const row = rowCache.rows[offset];
+          for (let offset = 0; offset < cellCache.cells.length; offset += 1) {
+            const cell = cellCache.cells[offset];
+            const index = first + offset;
             if (bit) {
-              const value = result && result.values ? result.values[offset] : undefined;
-              row.span.className = "bit" + (value === undefined ? " unknown" : (value ? " on" : ""));
-              row.span.lastChild.textContent = value === undefined ? "—" : (value ? t.on : t.off);
-              row.rawCell.textContent = value === undefined ? "" : (value ? "1" : "0");
-              row.holder.classList.toggle("muted", value === undefined);
+              const value = result && result.values ? result.values[index] : undefined;
+              cell.bit.className = "bit" + (value === undefined ? " unknown" : (value ? " on" : ""));
+              cell.bit.lastChild.textContent = value === undefined ? "—" : (value ? t.on : t.off);
+              cell.rawCell.textContent = value === undefined ? "" : (value ? "1" : "0");
+              cell.holder.classList.toggle("muted", value === undefined);
             } else {
-              const value = result && result.registers ? result.registers[offset] : undefined;
-              row.holder.textContent = formatRegister(value, scope.format);
-              row.holder.classList.toggle("muted", value === undefined);
-              row.rawCell.textContent = value === undefined
+              const value = result && result.registers ? result.registers[index] : undefined;
+              cell.holder.textContent = formatRegister(value, scope.format);
+              cell.holder.classList.toggle("muted", value === undefined);
+              cell.rawCell.textContent = value === undefined
                 ? "" : "0x" + (((Number(value) % 65536) + 65536) % 65536).toString(16).toUpperCase().padStart(4, "0");
             }
           }
@@ -1354,8 +1487,7 @@
 
         function renderDecoded(scope) {
           const bit = isBitArea(scope.area);
-          const hasData = scope.result && !scope.result.error && !bit;
-          if (!hasData) {
+          if (!scope.result || scope.result.error || bit) {
             decodedBox.style.display = "none";
             return;
           }
@@ -1369,7 +1501,7 @@
         }
 
         // ---- writing --------------------------------------------------------
-        async function writeCell(scope, address, current) {
+        async function writeCell(scope, address) {
           const bit = isBitArea(scope.area);
           const index = address - scope.start;
           const existing = scope.result
@@ -1378,9 +1510,7 @@
 
           const field = el("input", {
             type: "text",
-            value: bit
-              ? (existing ? "true" : "false")
-              : formatRegister(existing, "unsigned"),
+            value: bit ? (existing ? "true" : "false") : formatRegister(existing, "unsigned"),
             placeholder: bit ? "true / false" : scope.dataType
           });
           const payload = [
@@ -1477,14 +1607,21 @@
             ? saved.activeId
             : scopes[0].id;
 
-          // Older scopes were saved without an id; give them a stable one.
-          for (const scope of state.scopes) if (!scope.id) scope.id = newScope().id;
+          // Older scopes were saved without an id or the layout fields; fill
+          // them in so every scope has the same shape.
+          for (const scope of state.scopes) {
+            if (!scope.id) scope.id = newScope().id;
+            if (!Number(scope.columns)) scope.columns = SCOPE_DEFAULTS.columns;
+            if (!Number(scope.rows)) scope.rows = SCOPE_DEFAULTS.rows;
+            if (!Number.isFinite(Number(scope.page))) scope.page = 0;
+          }
           if (!state.scopes.some((scope) => scope.id === state.activeId)) state.activeId = state.scopes[0].id;
 
           updateCounters();
           renderScopeList();
           renderConfig();
-          renderTable(true);
+          syncLayoutInputs();
+          renderGrid(true);
           readActive();
         })();
 

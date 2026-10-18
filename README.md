@@ -46,21 +46,26 @@ imposing a look of its own. Nothing is hard-coded to a white background.
 - Ranges are added with `+`, which starts the new one where the previous one
   ended, and deleted from the row's own button. The last range cannot be
   deleted: an empty workbench has nothing to show and no obvious way back.
-- **The right side is only addresses and values** — a table of `Address`,
-  `Value` and the untouched `Raw value`, with a fixed-width address gutter so
-  either column can be read on its own. Every read is exactly one request for
-  the selected range.
+- **The right side is only addresses and values** — one cell per address, holding
+  the address, the value and the untouched raw word, with a fixed-width hex
+  gutter so the column lines up.
+- **Columns and rows set how much is visible at once.** `Columns` (1–6) is how
+  many cells share a row, `Rows` (1–50) how many rows a page holds; together they
+  are one page. A range larger than a page pages with `‹ 1 / 2 ›` instead of
+  scrolling, so the same number of addresses stays on screen while polling. Both
+  are view settings: changing them re-flows the grid and keeps the values already
+  read, without another request.
 - **Double-click a value to write it.** Read-only areas (input registers,
   discrete inputs) are not clickable, matching the backend rule.
-- **Byte order and word order affect the decoded value only.** The raw column
-  always shows the 16-bit registers that came off the wire; changing either
-  option re-decodes the value and re-renders the table without another request.
-  Word order is disabled for types narrower than 64 bits, where it would have no
-  effect.
+- **Byte order and word order affect the decoded value only.** The raw word in
+  each cell always shows the 16-bit register that came off the wire; changing
+  either option re-decodes the value and re-renders the grid without another
+  request. Word order is disabled for types narrower than 64 bits, where it would
+  have no effect.
 - `Tx` (requests sent) and `Err` (failed responses) sit in the header beside the
   Read and Poll actions.
-- The divider between the sidebar and the table is draggable, and adjustable
-  with the arrow keys.
+- The divider between the sidebar and the grid is draggable, and adjustable with
+  the arrow keys.
 
 **OPC UA**
 
