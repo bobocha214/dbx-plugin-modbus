@@ -1,4 +1,4 @@
-# everlink
+# EverLink
 
 A DBX plugin that reads and writes **Modbus TCP** and **OPC UA** data from industrial
 devices: PLCs, gateways, remote IO couplers and OPC UA servers.

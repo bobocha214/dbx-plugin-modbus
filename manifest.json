@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/t8y2/dbx/main/plugins/manifest.schema.json",
   "manifest_version": 1,
   "id": "io.github.yuzhi.everlink",
-  "name": "everlink",
+  "name": "EverLink",
   "version": "0.1.0",
   "publisher": "yuzhi",
   "description": "Read and write Modbus TCP and OPC UA data from industrial devices.",
@@ -216,7 +216,7 @@
   ],
   "localizations": {
     "zh-CN": {
-      "name": "everlink",
+      "name": "EverLink",
       "description": "从工业设备读取和写入 Modbus TCP 与 OPC UA 数据。",
       "contributions": {
         "io.github.yuzhi.everlink.modbus": {
