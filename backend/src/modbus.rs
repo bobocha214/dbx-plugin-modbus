@@ -282,6 +282,37 @@ impl ModbusSession {
             .collect())
     }
 
+    /// Reads `count` registers, transparently splitting the request into
+    /// Modbus-sized chunks (a single PDU can ask for at most 125). This lets a
+    /// wide data type (uint32/float32 = 2 registers, uint64/float64 = 4) be
+    /// read back as one contiguous block without the caller having to page.
+    pub fn read_registers_chunked(
+        &self,
+        unit_id: u8,
+        function_code: u8,
+        address: u16,
+        count: u16,
+    ) -> Result<Vec<u16>, String> {
+        if count == 0 {
+            return Ok(Vec::new());
+        }
+        if count > 2000 {
+            return Err("a register read takes 1..=2000 registers".to_string());
+        }
+        const CHUNK: u16 = 100;
+        let mut out = Vec::with_capacity(count as usize);
+        let mut addr = address;
+        let mut remaining = count;
+        while remaining > 0 {
+            let step = remaining.min(CHUNK);
+            let registers = self.read_registers(unit_id, function_code, addr, step)?;
+            out.extend_from_slice(&registers);
+            addr = addr.wrapping_add(step);
+            remaining -= step;
+        }
+        Ok(out)
+    }
+
     pub fn write_single_coil(&self, unit_id: u8, address: u16, value: bool) -> Result<u16, String> {
         let mut pdu = Vec::with_capacity(5);
         pdu.push(5);

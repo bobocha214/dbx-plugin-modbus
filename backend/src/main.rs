@@ -376,27 +376,28 @@ fn read_task(session: &ModbusSession, task: &Value, defaults: &ModbusDefaults) -
             }
         }
         modbus::FC_READ_HOLDING_REGISTERS | modbus::FC_READ_INPUT_REGISTERS => {
+            // `quantity` arrives as a register count (the UI multiplies its
+            // value/element count by `register_count(data_type)`). A wide type
+            // can exceed the 125-register PDU limit, so read in chunks.
             let quantity = match task.get("quantity").and_then(Value::as_u64) {
-                Some(value) => value.clamp(1, 125) as u16,
-                None => register_count(data_type).unwrap_or(1).clamp(1, 125) as u16,
-            };
-            match session.read_registers(unit_id, read_code, address, quantity) {
+                Some(value) => value.clamp(1, 2000),
+                None => register_count(data_type).unwrap_or(1) as u64,
+            } as u16;
+            match session.read_registers_chunked(unit_id, read_code, address, quantity) {
                 Ok(registers) => {
-                    match decode_registers(&registers, data_type, byte_order, word_order) {
-                        Ok(value) => json!({
-                            "ok": true,
-                            "unitId": unit_id,
-                            "area": area,
-                            "address": address,
-                            "quantity": quantity,
-                            "dataType": data_type,
-                            "byteOrder": byte_order,
-                            "wordOrder": word_order,
-                            "value": value,
-                            "registers": registers,
-                        }),
-                        Err(error) => json!({ "ok": false, "error": error }),
-                    }
+                    let value = decode_registers(&registers, data_type, byte_order, word_order).ok();
+                    json!({
+                        "ok": true,
+                        "unitId": unit_id,
+                        "area": area,
+                        "address": address,
+                        "quantity": quantity,
+                        "dataType": data_type,
+                        "byteOrder": byte_order,
+                        "wordOrder": word_order,
+                        "value": value,
+                        "registers": registers,
+                    })
                 }
                 Err(error) => json!({ "ok": false, "error": error }),
             }
@@ -675,9 +676,11 @@ impl Plugin {
         }
 
         if provider == "opcua" {
-            // Same in-band contract as `connection/test`: an unreachable endpoint
-            // or a rejected identity token is a result the connection form shows,
-            // not a plugin fault.
+            // The workbench must open and stay usable even when the endpoint is
+            // not reachable yet (a freshly typed IP, a powered-off server, or
+            // credentials that still need fixing). Opening the page is reported
+            // as `success: true`; the actual reachability lives in `connected`
+            // so the UI can show an offline state instead of a hard wall.
             let outcome = opcua_config(connection, params, &self.data_dir)
                 .and_then(|config| OpcuaSession::connect(&self.runtime, &config));
             return match outcome {
@@ -686,31 +689,46 @@ impl Plugin {
                     self.store(connection_id, Session::Opcua(session), None)?;
                     Ok(json!({
                         "success": true,
+                        "connected": true,
                         "message": format!("Connected to {endpoint}"),
                     }))
                 }
-                Err(error) => Ok(json!({ "success": false, "message": error })),
+                Err(error) => Ok(json!({
+                    "success": true,
+                    "connected": false,
+                    "message": format!(
+                        "Endpoint not reachable yet: {error}. The workbench is open — fix the address or credentials in the connection and reconnect."
+                    ),
+                })),
             };
         }
 
         if provider == "modbus-tcp" || provider == "modbus" {
+            // `modbus_session` only builds a struct and never fails, so the
+            // workbench can always be reached. The store is lazy: the socket is
+            // opened on the first read, which reconnects transparently once the
+            // device is actually there. Reachability is reported in `connected`
+            // rather than blocking the page when the IP is not answering.
             let session = match modbus_session(connection, params) {
                 Ok(session) => session,
-                Err(error) => return Ok(json!({ "success": false, "message": error })),
+                Err(error) => return Ok(json!({ "success": true, "connected": false, "message": error })),
             };
             let endpoint = session.endpoint();
             let defaults = modbus_defaults(connection);
-            // Probe once so a bad address surfaces during connect rather than
-            // as a surprise on the first poll.
             let probe = session.probe();
             self.store(connection_id, Session::Modbus(session), Some(defaults))?;
             return Ok(match probe {
-                Ok((_, note)) => {
-                    json!({ "success": true, "message": format!("Connected to {endpoint}; {note}") })
-                }
+                Ok((_, note)) => json!({
+                    "success": true,
+                    "connected": true,
+                    "message": format!("Connected to {endpoint}; {note}")
+                }),
                 Err(error) => json!({
-                    "success": false,
-                    "message": format!("Cannot reach {endpoint}: {error}"),
+                    "success": true,
+                    "connected": false,
+                    "message": format!(
+                        "Endpoint not reachable yet: {error}. The workbench is open — configure the address and reconnect. Reads will automatically connect once the device answers."
+                    ),
                 }),
             });
         }

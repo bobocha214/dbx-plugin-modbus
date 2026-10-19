@@ -47,7 +47,7 @@
           "type": "text",
           "binding": "host",
           "default": "192.168.1.10",
-          "required": true
+          "required": false
         },
         {
           "key": "port",
@@ -55,7 +55,7 @@
           "type": "number",
           "binding": "port",
           "default": 502,
-          "required": true
+          "required": false
         },
         {
           "key": "unit_id",
@@ -97,7 +97,7 @@
           "type": "text",
           "binding": "host",
           "default": "192.168.1.10",
-          "required": true
+          "required": false
         },
         {
           "key": "port",
@@ -105,7 +105,7 @@
           "type": "number",
           "binding": "port",
           "default": 4840,
-          "required": true
+          "required": false
         },
         {
           "key": "endpoint_path",

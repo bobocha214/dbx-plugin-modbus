@@ -338,6 +338,17 @@
         color: var(--dbx-muted-fg); font-variant-numeric: tabular-nums;
         overflow: hidden; text-overflow: ellipsis;
       }
+      /* Inline editor: the cell value becomes an input in place, so a write
+         needs no dialog. The holder grows to host the field while editing. */
+      .av .cell-value.editing { flex: 1 1 auto; min-width: 76px; padding: 0; }
+      .av .cell-value input.cell-edit {
+        width: 100%; box-sizing: border-box;
+        font-family: var(--dbx-mono); font-size: 12.5px; font-weight: 500;
+        padding: 1px 4px; border: 1px solid var(--dbx-ring); border-radius: var(--dbx-radius);
+        background: var(--dbx-bg); color: var(--dbx-fg);
+        font-variant-numeric: tabular-nums;
+      }
+      .av .cell-value input.cell-edit:focus { outline: none; border-color: var(--dbx-primary); }
 
       /* Paging controls, shown only when a range does not fit on one page. */
       .pager { display: flex; align-items: center; gap: 1px; flex: none; }
@@ -574,7 +585,7 @@
           modbus: "Modbus TCP", opcua: "OPC UA",
           poll: "Poll", stop: "Stop", readOnce: "Read", readAll: "Read all",
           interval: "Scan rate", ms: "ms",
-          area: "Area", address: "Address", quantity: "Quantity", dataType: "Data type",
+          area: "Area", address: "Address", quantity: "Values", dataType: "Data type", quantityHintBits: "Number of coils / discrete inputs.", quantityHintRegs: "Number of values; each spans {rc} × 16-bit registers.",
           byteOrder: "Byte order", wordOrder: "Word order", unit: "Slave id",
           value: "Value", raw: "Raw value", state: "State", format: "Display",
           subscribe: "Subscribe", unsubscribe: "Unsubscribe",
@@ -627,7 +638,7 @@
           modbus: "Modbus TCP", opcua: "OPC UA",
           poll: "轮询", stop: "停止", readOnce: "读取", readAll: "读取全部",
           interval: "扫描周期", ms: "毫秒",
-          area: "区域", address: "地址", quantity: "数量", dataType: "数据类型",
+          area: "区域", address: "地址", quantity: "值数量", dataType: "数据类型", quantityHintBits: "线圈 / 离散输入的个数。", quantityHintRegs: "值的个数；每个占 {rc} 个 16 位寄存器。",
           byteOrder: "字节序", wordOrder: "字序", unit: "从站号",
           value: "值", raw: "原始值", state: "状态", format: "显示格式",
           subscribe: "订阅", unsubscribe: "取消订阅",
@@ -991,7 +1002,8 @@
         format: "unsigned", intervalMs: 1000, name: "",
         // How the values are laid out. Columns × rows is one page; a range
         // larger than that is paged rather than scrolled, so the same number of
-        // addresses is always visible while polling.
+        // values is always visible while polling. (A value may span several
+        // registers depending on its data type.)
         columns: 4, rows: 8
       };
       // `page` is deliberately absent — where you are looking is not a setting.
@@ -1029,7 +1041,8 @@
       /** `Holding 0 – 31` when the user has not named the range themselves. */
       function scopeTitle(scope) {
         if (scope.name && scope.name.trim()) return scope.name.trim();
-        const end = scope.start + Math.max(1, scope.quantity) - 1;
+        const rc = isBitArea(scope.area) ? 1 : registerCount(scope.dataType);
+        const end = scope.start + Math.max(1, scope.quantity) * rc - 1;
         return `${t[scope.area] || scope.area} ${scope.start} – ${end}`;
       }
 
@@ -1072,6 +1085,7 @@
         const selectedDevice = () => deviceById(state.selectedDeviceId) || state.devices[0] || null;
         const deviceOf = (scope) => deviceById(scope && scope.deviceId) || state.devices[0] || null;
         const sessionId = (device) => DEVICE_KEY_PREFIX + device.id;
+        const scopesOf = (deviceId) => state.scopes.filter((scope) => scope.deviceId === deviceId);
 
         // ---- header counters and device state -------------------------------
         const sTx = stat(t.tx, 0);
@@ -1323,9 +1337,23 @@
 
         function selectDevice(device) {
           state.selectedDeviceId = device.id;
-          renderDeviceList();
-          renderDeviceForm();
+          // Selecting a device switches the whole workbench to it: the range
+          // list and the grid follow the device, so each IP is a self-contained
+          // context you flip between.
+          const deviceScopes = scopesOf(device.id);
+          if (!deviceScopes.some((scope) => scope.id === state.activeId)) {
+            state.activeId = deviceScopes.length ? deviceScopes[0].id : null;
+          }
+          renderSidebar();
           renderHeaderDevice();
+          if (state.activeId) {
+            readActive();
+          } else {
+            valueGrid.textContent = "";
+            rangeLabel.textContent = "";
+            errorBar.style.display = "none";
+            footnote.textContent = t.emptyTable;
+          }
         }
 
         function addDevice() {
@@ -1351,7 +1379,15 @@
           }
           closeDevice(device);
           state.devices = state.devices.filter((entry) => entry !== device);
-          if (state.selectedDeviceId === device.id) state.selectedDeviceId = state.devices[0]?.id || null;
+          // Keep the focus on whatever the active range still belongs to, so the
+          // right side does not jump to an unrelated device.
+          if (state.selectedDeviceId === device.id) {
+            const survivor = deviceOf(active()) || state.devices[0] || null;
+            state.selectedDeviceId = survivor ? survivor.id : null;
+            if (!state.scopes.some((scope) => scope.id === state.activeId)) {
+              state.activeId = survivor ? (scopesOf(survivor.id)[0]?.id || null) : null;
+            }
+          }
           persistDevices();
           renderSidebar();
           renderHeaderDevice();
@@ -1536,7 +1572,9 @@
         // ---- scope list -----------------------------------------------------
         function renderScopeList() {
           scopeList.textContent = "";
-          for (const scope of state.scopes) {
+          const device = selectedDevice();
+          const visible = device ? scopesOf(device.id) : state.scopes;
+          for (const scope of visible) {
             const selected = scope.id === state.activeId;
             const item = el("div", {
               class: "scope-item" + (selected ? " active" : ""),
@@ -1553,7 +1591,7 @@
               el("span", { class: "scope-name", text: scopeTitle(scope), title: scopeTitle(scope) }),
               el("span", {
                 class: "scope-meta",
-                text: `${formatAddress(scope.start)}–${formatAddress(scope.start + Math.max(1, scope.quantity) - 1)} · ${deviceLabel(deviceOf(scope))}`
+                text: `${formatAddress(scope.start)}–${formatAddress(scope.start + Math.max(1, scope.quantity) * (isBitArea(scope.area) ? 1 : registerCount(scope.dataType)) - 1)} · ${deviceLabel(deviceOf(scope))}`
               })
             ]));
             item.appendChild(el("button", {
@@ -1565,14 +1603,17 @@
         }
 
         function addScope() {
+          const device = selectedDevice();
           const current = active();
-          const patch = current
+          const sameDevice = current && (!device || current.deviceId === device.id);
+          const patch = sameDevice
             ? {
                 deviceId: current.deviceId,
                 area: current.area,
                 // A new range starts where the last one ended, which is the
                 // common case when walking through a device block by block.
-                start: Math.min(65535, current.start + Math.max(1, current.quantity)),
+                // The step is in registers, so a wide type advances by more.
+                start: Math.min(65535, current.start + Math.max(1, current.quantity) * (isBitArea(current.area) ? 1 : registerCount(current.dataType))),
                 quantity: current.quantity,
                 dataType: current.dataType,
                 byteOrder: current.byteOrder,
@@ -1582,10 +1623,11 @@
                 columns: current.columns,
                 rows: current.rows
               }
-            : { deviceId: state.devices[0]?.id || "" };
+            : { deviceId: device ? device.id : (state.devices[0]?.id || "") };
           const scope = newScope(patch);
           state.scopes.push(scope);
           state.activeId = scope.id;
+          state.selectedDeviceId = scope.deviceId;
           persistScopes();
           renderSidebar();
           renderGrid(true);
@@ -1612,6 +1654,7 @@
         function selectScope(scope) {
           if (state.activeId === scope.id) return;
           state.activeId = scope.id;
+          state.selectedDeviceId = scope.deviceId;
           persistScopes();
           renderSidebar();
           renderGrid(true);
@@ -1643,8 +1686,9 @@
           const deviceSelect = el("select", {
             onchange: (event) => {
               scope.deviceId = event.target.value;
+              state.selectedDeviceId = scope.deviceId;
               persistScopes();
-              renderScopeList();
+              renderSidebar();
               changedDefinition();
             }
           }, state.devices.map((device) => el("option", {
@@ -1667,16 +1711,25 @@
               scope.area = event.target.value;
               const cap = isBitArea(scope.area) ? 2000 : 125;
               if (scope.quantity > cap) scope.quantity = cap;
+              quantityInput.max = String(cap);
+              syncQuantityHint();
               changedDefinition();
             }
           }, AREAS.map((value) => el("option", {
             value, text: areaLabel(value), selected: value === scope.area ? "selected" : null
           }))));
+          const quantityInput = numberInput(scope, "quantity", 1,
+            isBitArea(scope.area) ? 2000 : 125, changedDefinition);
+          const syncQuantityHint = () => {
+            quantityInput.title = isBitArea(scope.area)
+              ? t.quantityHintBits
+              : t.quantityHintRegs.replace("{rc}", registerCount(scope.dataType));
+          };
+          syncQuantityHint();
           formPair(
             addressSection,
             t.start, numberInput(scope, "start", 0, 65535, changedDefinition),
-            t.quantity, numberInput(scope, "quantity", 1,
-              isBitArea(scope.area) ? 2000 : 125, changedDefinition)
+            t.quantity, quantityInput
           );
           configForm.appendChild(addressSection);
 
@@ -1688,6 +1741,7 @@
             onchange: (event) => {
               scope.dataType = event.target.value;
               syncWordOrder();
+              syncQuantityHint();
               changedDisplay();
             }
           }, DATA_TYPES.map((value) => el("option", {
@@ -1763,10 +1817,14 @@
 
         // ---- reading --------------------------------------------------------
         function scopeTask(scope, device) {
+          // The UI counts *values* (one grid cell each); the wire counts
+          // registers, so a wide type multiplies the quantity: uint16 = 1,
+          // uint32/float32 = 2, uint64/float64 = 4 registers per value.
+          const rc = isBitArea(scope.area) ? 1 : registerCount(scope.dataType);
           const task = {
             area: scope.area,
             address: scope.start,
-            quantity: scope.quantity,
+            quantity: Math.max(1, scope.quantity) * rc,
             // The unit lives on the device, but it is sent per read so editing
             // it takes effect immediately instead of needing a reconnect.
             unitId: Number(device.unitId) || 0,
@@ -1808,8 +1866,12 @@
               noteTransportFailure(device, result.error);
               toast(result.error || "Read failed", "error");
             } else {
+              const regCount = (result.registers || []).length;
+              const valueCount = isBitArea(scope.area)
+                ? regCount
+                : Math.floor(regCount / registerCount(scope.dataType));
               logRead(scope, device, true,
-                `${(result.registers || result.values || []).length} ${t.items}`, durationMs);
+                `${valueCount} ${t.items}`, durationMs);
               scope.result = {
                 registers: result.registers || [],
                 values: result.values || [],
@@ -1875,7 +1937,7 @@
             at: new Date(),
             deviceId: device ? device.id : "",
             device: deviceLabel(device),
-            range: `${formatAddress(scope.start)}–${formatAddress(scope.start + Math.max(1, scope.quantity) - 1)}`,
+            range: `${formatAddress(scope.start)}–${formatAddress(scope.start + Math.max(1, scope.quantity) * (isBitArea(scope.area) ? 1 : registerCount(scope.dataType)) - 1)}`,
             ok: Boolean(ok),
             message: String(message || ""),
             durationMs: Math.max(0, Number(durationMs) || 0),
@@ -1970,6 +2032,10 @@
           const scope = active();
           if (!scope) return;
           const bit = isBitArea(scope.area);
+          // How many registers one value occupies. Every cell and every address
+          // step is measured in these, so a uint32 grid covers twice the
+          // register space a uint16 grid of the same length would.
+          const rc = bit ? 1 : registerCount(scope.dataType);
           const capacity = pageCapacity(scope);
           const total = Math.max(1, scope.quantity);
           const pages = pageCount(scope);
@@ -1977,10 +2043,10 @@
 
           const first = scope.page * capacity;
           const shown = Math.min(capacity, total - first);
-          const key = `${scope.area}:${scope.start}:${total}:${bit ? "b" : "r"}:${scope.columns}:${scope.rows}:${scope.page}`;
+          const key = `${scope.area}:${scope.start}:${total}:${bit ? "b" : "r"}:${scope.columns}:${scope.rows}:${scope.page}:${rc}`;
 
-          const rangeStart = scope.start + first;
-          const rangeEnd = rangeStart + shown - 1;
+          const rangeStart = scope.start + first * rc;
+          const rangeEnd = rangeStart + shown * rc - 1;
           const countText = pages > 1 ? `${shown} / ${total} ${t.items}` : `${total} ${t.items}`;
           rangeLabel.textContent = `${formatAddress(rangeStart)} – ${formatAddress(rangeEnd)} · ${countText}`;
 
@@ -2009,11 +2075,11 @@
 
           valueGrid.style.setProperty("--cols", String(Math.max(1, scope.columns)));
           valueGrid.textContent = "";
-          cellCache = { key, cells: [] };
+          cellCache = { key, cells: [], rc };
 
           for (let offset = 0; offset < shown; offset += 1) {
             const index = first + offset;
-            const address = scope.start + index;
+            const address = scope.start + index * rc;
             const cell = el("div", { class: "av" });
             cell.appendChild(el("span", { class: "a", text: formatAddress(address) }));
 
@@ -2029,7 +2095,7 @@
 
               if (scope.area === "coil") {
                 holder.title = `${formatAddress(address)} · ${t.writeHint}`;
-                holder.addEventListener("dblclick", () => writeCell(scope, address));
+                holder.addEventListener("dblclick", () => beginInlineEdit(scope, address, cell));
               } else {
                 holder.classList.add("readonly");
                 holder.title = `${formatAddress(address)} · ${t.readOnlyArea}`;
@@ -2043,7 +2109,7 @@
 
               if (scope.area === "holding") {
                 holder.title = `${formatAddress(address)} · ${scope.dataType} · ${t.writeHint}`;
-                holder.addEventListener("dblclick", () => writeCell(scope, address));
+                holder.addEventListener("dblclick", () => beginInlineEdit(scope, address, cell));
               } else {
                 holder.classList.add("readonly");
                 holder.title = `${formatAddress(address)} · ${t.readOnlyArea}`;
@@ -2057,22 +2123,41 @@
 
         function updateCells(scope, first) {
           const bit = isBitArea(scope.area);
+          const rc = bit ? 1 : registerCount(scope.dataType);
           const result = scope.result;
           for (let offset = 0; offset < cellCache.cells.length; offset += 1) {
             const cell = cellCache.cells[offset];
-            const index = first + offset;
+            // Never overwrite the cell the user is editing inline.
+            if (cell.holder.classList.contains("editing")) continue;
+            const valueIndex = first + offset;
             if (bit) {
-              const value = result && result.values ? result.values[index] : undefined;
+              const value = result && result.values ? result.values[valueIndex] : undefined;
               cell.bit.className = "bit" + (value === undefined ? " unknown" : (value ? " on" : ""));
               cell.bit.lastChild.textContent = value === undefined ? "—" : (value ? t.on : t.off);
               cell.rawCell.textContent = value === undefined ? "" : (value ? "1" : "0");
               cell.holder.classList.toggle("muted", value === undefined);
             } else {
-              const value = result && result.registers ? result.registers[index] : undefined;
-              cell.holder.textContent = formatRegister(value, scope.format);
-              cell.holder.classList.toggle("muted", value === undefined);
-              cell.rawCell.textContent = value === undefined
-                ? "" : "0x" + (((Number(value) % 65536) + 65536) % 65536).toString(16).toUpperCase().padStart(4, "0");
+              // Each cell owns `rc` registers; decode just that slice so a
+              // uint32/float32/uint64 grid shows one real value per cell.
+              const slice = result && result.registers
+                ? result.registers.slice(valueIndex * rc, valueIndex * rc + rc)
+                : [];
+              const decoded = slice.length >= rc
+                ? decodeRegistersClient(slice, scope.dataType, scope.byteOrder, scope.wordOrder)
+                : undefined;
+              cell.holder.classList.toggle("muted", decoded === undefined);
+              if (decoded === undefined) {
+                cell.holder.textContent = "—";
+                cell.rawCell.textContent = "";
+              } else if (rc === 1) {
+                // 16-bit types keep the legacy "Display" formatting on the main
+                // value, with the raw hex as the secondary readout.
+                cell.holder.textContent = formatRegister(decoded, scope.format);
+                cell.rawCell.textContent = formatRegister(decoded, "hex");
+              } else {
+                cell.holder.textContent = formatValue(decoded);
+                cell.rawCell.textContent = slice.map((word) => formatRegister(word, scope.format)).join(" ");
+              }
             }
           }
         }
@@ -2083,58 +2168,95 @@
             decodedBox.style.display = "none";
             return;
           }
+          const rc = registerCount(scope.dataType);
+          const slice = (scope.result.registers || []).slice(0, rc);
+          if (slice.length < rc) {
+            decodedBox.style.display = "none";
+            return;
+          }
+          const value = decodeRegistersClient(slice, scope.dataType, scope.byteOrder, scope.wordOrder);
           decodedBox.style.display = "";
-          const value = decodeRegistersClient(scope.result.registers, scope.dataType, scope.byteOrder, scope.wordOrder);
           decodedValue.textContent = formatValue(value);
           decodedMeta.textContent = [
             scope.dataType, scope.byteOrder, scope.wordOrder,
-            `${registerCount(scope.dataType)} × 16-bit`
+            `${rc} × 16-bit`
           ].join(" · ");
         }
 
         // ---- writing --------------------------------------------------------
-        async function writeCell(scope, address) {
+        // Inline editing: double-click a writable cell to turn its value into an
+        // input in place. Enter commits the write, Esc or an empty field cancels,
+        // and the input is replaced by the live value the moment it loses focus.
+        let editingCell = null;
+
+        function beginInlineEdit(scope, address, cell) {
+          if (editingCell) return;
           const device = deviceOf(scope);
           if (!device) return;
           const bit = isBitArea(scope.area);
-          const index = address - scope.start;
-          const existing = scope.result
-            ? (bit ? (scope.result.values || [])[index] : (scope.result.registers || [])[index])
-            : undefined;
+          const rc = bit ? 1 : registerCount(scope.dataType);
+          const valueIndex = Math.round((address - scope.start) / rc);
+          const existing = scope.result ? (() => {
+            if (bit) return (scope.result.values || [])[valueIndex];
+            const slice = (scope.result.registers || []).slice(valueIndex * rc, valueIndex * rc + rc);
+            return slice.length >= rc
+              ? decodeRegistersClient(slice, scope.dataType, scope.byteOrder, scope.wordOrder)
+              : undefined;
+          })() : undefined;
 
-          const field = el("input", {
-            type: "text",
-            value: bit ? (existing ? "true" : "false") : formatRegister(existing, "unsigned"),
+          const holder = cell.holder;
+          const input = el("input", {
+            class: "cell-edit", type: "text",
+            value: bit ? (existing ? "true" : "false") : (existing === undefined ? "" : formatValue(existing)),
             placeholder: bit ? "true / false" : scope.dataType
           });
-          const payload = [
-            `${deviceLabel(device)} · ${t[scope.area] || scope.area} @ ${formatAddress(address)}`,
-            `${t.unit} ${device.unitId}`,
-            bit ? "" : scope.dataType
-          ].filter(Boolean).join(" · ");
+          if (bit) { cell.bit.style.display = "none"; holder.appendChild(input); }
+          else { holder.textContent = ""; holder.appendChild(input); }
+          holder.classList.add("editing");
+          editingCell = { scope, address, holder, cell, input, bit, valueIndex };
+          input.focus();
+          input.select();
 
-          const confirmed = await confirmDialog({
-            title: bit ? t.writeTitleCoil : t.writeTitleRegister,
-            body: t.confirmWriteBody,
-            payload, field, label: t.value,
-            confirmLabel: t.confirm
+          let settled = false;
+          const finish = (commit) => {
+            if (settled) return;
+            settled = true;
+            const raw = input.value;
+            holder.classList.remove("editing");
+            if (bit) { cell.bit.style.display = ""; input.remove(); }
+            else { holder.textContent = ""; }
+            editingCell = null;
+            if (!commit || String(raw).trim() === "") { refreshCell(scope, cell, valueIndex); return; }
+            commitInlineWrite(scope, address, raw, cell, valueIndex);
+          };
+          input.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") { event.preventDefault(); finish(true); }
+            else if (event.key === "Escape") { event.preventDefault(); finish(false); }
           });
-          if (confirmed === null) return;
+          // A blur (click elsewhere, switch tab) commits unless already settled.
+          input.addEventListener("blur", () => finish(true));
+        }
 
+        async function commitInlineWrite(scope, address, raw, cell, valueIndex) {
+          const device = deviceOf(scope);
+          if (!device) { refreshCell(scope, cell, valueIndex); return; }
+          const bit = isBitArea(scope.area);
           try {
             const entry = { area: scope.area, address, unitId: Number(device.unitId) || 0 };
             if (bit) {
-              const text = String(field.value).trim().toLowerCase();
+              const text = String(raw).trim().toLowerCase();
               entry.value = !(text === "false" || text === "0");
             } else {
               entry.dataType = scope.dataType;
               entry.byteOrder = scope.byteOrder;
               entry.wordOrder = scope.wordOrder;
-              entry.value = Number(field.value);
-              if (!Number.isFinite(entry.value)) {
-                toast(`"${field.value}" is not a number`, "error");
+              const parsed = Number(raw);
+              if (!Number.isFinite(parsed)) {
+                toast(`"${raw}" is not a number`, "error");
+                refreshCell(scope, cell, valueIndex);
                 return;
               }
+              entry.value = parsed;
             }
             const response = await invoke("modbus/write", {
               connectionId: sessionId(device), writes: [entry]
@@ -2142,17 +2264,52 @@
             const result = (response.results || [])[0];
             state.tx += 1;
             if (result && result.ok) {
-              toast(`${formatAddress(address)} ← ${field.value}`, "info");
+              toast(`${formatAddress(address)} ← ${raw}`, "info");
               readActive();
             } else {
               state.err += 1;
               updateCounters();
               noteTransportFailure(device, result && result.error);
               toast((result && result.error) || "Write failed", "error");
+              refreshCell(scope, cell, valueIndex);
             }
           } catch (error) {
             noteTransportFailure(device, errorText(error));
             toast(errorText(error), "error");
+            refreshCell(scope, cell, valueIndex);
+          }
+        }
+
+        // Repaint a single cell from the current read result without rebuilding
+        // the grid, used to restore a cell after an inline edit is cancelled.
+        function refreshCell(scope, cell, valueIndex) {
+          const bit = isBitArea(scope.area);
+          const rc = bit ? 1 : registerCount(scope.dataType);
+          const result = scope.result;
+          if (bit) {
+            const value = result && result.values ? result.values[valueIndex] : undefined;
+            cell.bit.className = "bit" + (value === undefined ? " unknown" : (value ? " on" : ""));
+            cell.bit.lastChild.textContent = value === undefined ? "—" : (value ? t.on : t.off);
+            cell.rawCell.textContent = value === undefined ? "" : (value ? "1" : "0");
+            cell.holder.classList.toggle("muted", value === undefined);
+          } else {
+            const slice = result && result.registers
+              ? result.registers.slice(valueIndex * rc, valueIndex * rc + rc)
+              : [];
+            const decoded = slice.length >= rc
+              ? decodeRegistersClient(slice, scope.dataType, scope.byteOrder, scope.wordOrder)
+              : undefined;
+            cell.holder.classList.toggle("muted", decoded === undefined);
+            if (decoded === undefined) {
+              cell.holder.textContent = "—";
+              cell.rawCell.textContent = "";
+            } else if (rc === 1) {
+              cell.holder.textContent = formatRegister(decoded, scope.format);
+              cell.rawCell.textContent = formatRegister(decoded, "hex");
+            } else {
+              cell.holder.textContent = formatValue(decoded);
+              cell.rawCell.textContent = slice.map((word) => formatRegister(word, scope.format)).join(" ");
+            }
           }
         }
 
@@ -2253,6 +2410,13 @@
             && scopes.some((scope) => scope.id === savedScopes.activeId))
             ? savedScopes.activeId
             : scopes[0].id;
+          // The focused device owns the active range: if the saved active range
+          // belongs to another device, fall back to the first range of the
+          // focused device so the sidebar, list and grid stay in agreement.
+          if (!scopesOf(state.selectedDeviceId).some((scope) => scope.id === state.activeId)) {
+            state.activeId = scopesOf(state.selectedDeviceId)[0]?.id || null;
+          }
+          if (state.activeId) state.selectedDeviceId = active().deviceId;
 
           persistDevices();
           persistScopes();
