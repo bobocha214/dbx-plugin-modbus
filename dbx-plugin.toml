@@ -3,7 +3,7 @@ schema_version = 1
 [backend]
 language = "rust"
 directory = "backend"
-binary = "dbx-plugin-dbx-industrial-protocols"
+binary = "dbx-plugin-everlink"
 
 [package]
 include = ["assets", "ui"]

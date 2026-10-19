@@ -1,4 +1,4 @@
-# DBX Industrial Protocols
+# everlink
 
 A DBX plugin that reads and writes **Modbus TCP** and **OPC UA** data from industrial
 devices: PLCs, gateways, remote IO couplers and OPC UA servers.
@@ -12,11 +12,11 @@ Built from the official `dbx-plugin create` **Rust + frontend** template.
 
 | Contribution | Type | Purpose |
 | --- | --- | --- |
-| `com.dbx.industrial-protocols.modbus` | connection-provider | Modbus TCP connection form |
-| `com.dbx.industrial-protocols.opcua` | connection-provider | OPC UA connection form |
-| `com.dbx.industrial-protocols.modbus.workbench` | workbench | Register table with polling and guarded writes |
-| `com.dbx.industrial-protocols.opcua.workbench` | workbench | Address space browser, reads and subscriptions |
-| `com.dbx.industrial-protocols.mcp` | mcp | Read-only tools for the DBX AI assistant |
+| `io.github.yuzhi.everlink.modbus` | connection-provider | Modbus TCP connection form |
+| `io.github.yuzhi.everlink.opcua` | connection-provider | OPC UA connection form |
+| `io.github.yuzhi.everlink.modbus.workbench` | workbench | Register table with polling and guarded writes |
+| `io.github.yuzhi.everlink.opcua.workbench` | workbench | Address space browser, reads and subscriptions |
+| `io.github.yuzhi.everlink.mcp` | mcp | Read-only tools for the DBX AI assistant |
 
 Both workbenches are served by the same `ui/index.html`; the page routes on
 `dbxPlugin.contributionId`.

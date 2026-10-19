@@ -1,10 +1,10 @@
 {
   "$schema": "https://raw.githubusercontent.com/t8y2/dbx/main/plugins/manifest.schema.json",
   "manifest_version": 1,
-  "id": "com.dbx.industrial-protocols",
-  "name": "DBX Industrial Protocols",
+  "id": "io.github.yuzhi.everlink",
+  "name": "everlink",
   "version": "0.1.0",
-  "publisher": "dbx",
+  "publisher": "yuzhi",
   "description": "Read and write Modbus TCP and OPC UA data from industrial devices.",
   "icon": "assets/plugin.svg",
   "homepage": "https://dbxio.com/cn/docs/plugin-development",
@@ -17,7 +17,7 @@
     "backend": {
       "protocol_versions": [1],
       "transport": "stdio-jsonl",
-      "executable": "bin/dbx-plugin-dbx-industrial-protocols"
+      "executable": "bin/dbx-plugin-everlink"
     },
     "ui": {
       "root": "ui",
@@ -27,7 +27,7 @@
   "contributions": [
     {
       "type": "connection-provider",
-      "id": "com.dbx.industrial-protocols.modbus",
+      "id": "io.github.yuzhi.everlink.modbus",
       "label": "Modbus TCP",
       "icon": "assets/plugin.svg",
       "database_type": "modbus-tcp",
@@ -72,12 +72,12 @@
           "default": 3000
         }
       ],
-      "workbench": "com.dbx.industrial-protocols.modbus.workbench",
+      "workbench": "io.github.yuzhi.everlink.modbus.workbench",
       "capabilities": ["test", "connect", "disconnect"]
     },
     {
       "type": "connection-provider",
-      "id": "com.dbx.industrial-protocols.opcua",
+      "id": "io.github.yuzhi.everlink.opcua",
       "label": "OPC UA",
       "icon": "assets/plugin.svg",
       "database_type": "opcua",
@@ -163,12 +163,12 @@
           "default": 10000
         }
       ],
-      "workbench": "com.dbx.industrial-protocols.opcua.workbench",
+      "workbench": "io.github.yuzhi.everlink.opcua.workbench",
       "capabilities": ["test", "connect", "disconnect"]
     },
     {
       "type": "workbench",
-      "id": "com.dbx.industrial-protocols.modbus.workbench",
+      "id": "io.github.yuzhi.everlink.modbus.workbench",
       "label": "Modbus TCP workbench",
       "description": "Register table with periodic polling and guarded writes.",
       "icon": "assets/plugin.svg",
@@ -191,7 +191,7 @@
     },
     {
       "type": "workbench",
-      "id": "com.dbx.industrial-protocols.opcua.workbench",
+      "id": "io.github.yuzhi.everlink.opcua.workbench",
       "label": "OPC UA workbench",
       "description": "Browse the address space, read and subscribe to nodes.",
       "icon": "assets/plugin.svg",
@@ -208,7 +208,7 @@
     },
     {
       "type": "mcp",
-      "id": "com.dbx.industrial-protocols.mcp",
+      "id": "io.github.yuzhi.everlink.mcp",
       "description": "Read-only Modbus TCP and OPC UA tools for the DBX AI assistant.",
       "ai_tools": true,
       "external_tools": false
@@ -216,10 +216,10 @@
   ],
   "localizations": {
     "zh-CN": {
-      "name": "DBX 工业协议",
+      "name": "everlink",
       "description": "从工业设备读取和写入 Modbus TCP 与 OPC UA 数据。",
       "contributions": {
-        "com.dbx.industrial-protocols.modbus": {
+        "io.github.yuzhi.everlink.modbus": {
           "label": "Modbus TCP",
           "description": "连接 Modbus TCP 服务端，例如 PLC、网关或远程 IO。",
           "fields": {
@@ -230,7 +230,7 @@
             "timeout_ms": { "label": "请求超时（毫秒）" }
           }
         },
-        "com.dbx.industrial-protocols.opcua": {
+        "io.github.yuzhi.everlink.opcua": {
           "label": "OPC UA",
           "description": "连接 OPC UA 服务端，浏览地址空间并订阅节点。",
           "fields": {
@@ -245,11 +245,11 @@
             "timeout_ms": { "label": "请求超时（毫秒）" }
           }
         },
-        "com.dbx.industrial-protocols.modbus.workbench": {
+        "io.github.yuzhi.everlink.modbus.workbench": {
           "label": "Modbus TCP 工作台",
           "description": "寄存器表、周期轮询与带二次确认的写入。"
         },
-        "com.dbx.industrial-protocols.opcua.workbench": {
+        "io.github.yuzhi.everlink.opcua.workbench": {
           "label": "OPC UA 工作台",
           "description": "浏览地址空间、读取和订阅节点。"
         }

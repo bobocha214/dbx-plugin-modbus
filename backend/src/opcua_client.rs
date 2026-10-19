@@ -199,7 +199,7 @@ impl OpcuaSession {
         };
 
         let mut client = ClientBuilder::new()
-            .application_name("DBX Industrial Protocols")
+            .application_name("everlink")
             .application_uri("urn:dbx:plugin:industrial-protocols")
             .product_uri("urn:dbx:plugin:industrial-protocols")
             .create_sample_keypair(true)
@@ -231,7 +231,7 @@ impl OpcuaSession {
                         Ok(pair) => pair,
                         Err(direct_error) => {
                             let mut retry_client = ClientBuilder::new()
-                                .application_name("DBX Industrial Protocols")
+                                .application_name("everlink")
                                 .application_uri("urn:dbx:plugin:industrial-protocols")
                                 .product_uri("urn:dbx:plugin:industrial-protocols")
                                 .create_sample_keypair(true)
