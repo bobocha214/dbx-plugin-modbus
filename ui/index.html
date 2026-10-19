@@ -281,6 +281,38 @@
       }
       .decoded .m { font-size: 11px; color: var(--dbx-muted-fg); flex: none; font-family: var(--dbx-mono); }
 
+      /* Merged view: several of the device's ranges stacked, each its own
+         titled block, so they are reviewed without switching in the sidebar. */
+      .range-block {
+        margin: 0 12px 14px; border: 1px solid var(--dbx-line);
+        border-radius: var(--dbx-radius-lg); background: var(--dbx-card); overflow: hidden;
+      }
+      .range-block.active { box-shadow: inset 0 0 0 2px var(--dbx-primary); }
+      .range-block-head {
+        display: flex; align-items: center; gap: 10px;
+        padding: 7px 12px; border-bottom: var(--dbx-line); background: var(--dbx-muted);
+      }
+      .range-block-head .rb-title { font-size: 12.5px; font-weight: 600; }
+      .range-block-head .rb-meta {
+        font-size: 10.5px; color: var(--dbx-muted-fg); font-family: var(--dbx-mono);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .range-block-head .rb-decoded {
+        margin-left: auto; font-family: var(--dbx-mono); font-size: 12px; font-weight: 600;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .range-block-head .rb-pager { display: flex; align-items: center; gap: 1px; flex: none; }
+      .range-block-head .rb-pager button { width: 22px; height: 22px; padding: 0; font-size: 12px; }
+      .range-block-head .rb-pager .page-info {
+        min-width: 40px; text-align: center; font-family: var(--dbx-mono);
+        font-size: 11px; color: var(--dbx-muted-fg);
+      }
+      .range-block .rb-error {
+        padding: 6px 12px; font-size: 11.5px; color: var(--dbx-destructive);
+        background: color-mix(in srgb, var(--dbx-destructive) 8%, transparent);
+      }
+      .range-block .value-grid { padding: 8px 10px 14px; }
+
       .table-wrap { flex: 1; min-height: 0; overflow: auto; }
       table { border-collapse: separate; border-spacing: 0; width: 100%; }
       th, td {
@@ -616,6 +648,8 @@
           nameLabel: "Name", on: "ON", off: "OFF",
           columns: "Columns", rows: "Rows",
           prevPage: "Previous page", nextPage: "Next page",
+          mergeView: "Merge", singleView: "Single", mergeHint: "Show all ranges of this device together",
+          selectRange: "Show in single view",
           // Devices
           devices: "Devices", device: "Device", tabDevices: "Devices", tabRanges: "Ranges",
           addDevice: "Add device", deviceName: "Name", groupDevice: "Address",
@@ -669,6 +703,8 @@
           nameLabel: "名称", on: "ON", off: "OFF",
           columns: "列数", rows: "行数",
           prevPage: "上一页", nextPage: "下一页",
+          mergeView: "合并", singleView: "单页", mergeHint: "把该设备的所有范围一起显示",
+          selectRange: "在单页中查看",
           devices: "设备", device: "设备", tabDevices: "设备", tabRanges: "配置",
           addDevice: "添加设备", deviceName: "名称", groupDevice: "地址",
           host: "IP 地址", port: "端口", deviceTimeout: "超时（毫秒）",
@@ -1076,6 +1112,7 @@
         const state = {
           devices: [], scopes: [], activeId: null, selectedDeviceId: null,
           tab: "ranges", busy: false, timer: null, tx: 0, err: 0,
+          mergeView: false,
           // Read history is diagnostic, so it lives in memory only.
           log: [], logOpen: false
         };
@@ -1148,12 +1185,19 @@
         const decodedMeta = el("span", { class: "m" });
         const decodedBox = el("div", { class: "decoded" }, [decodedLabel, decodedValue, decodedMeta]);
 
+        const mergeButton = el("button", {
+          class: "icon ghost", title: t.mergeHint,
+          onclick: () => { state.mergeView = !state.mergeView; persistScopes(); syncMergeButton(); renderGrid(true); }
+        });
+        function syncMergeButton() { mergeButton.textContent = state.mergeView ? t.singleView : t.mergeView; }
+
         const contentHead = el("div", { class: "content-head" }, [
           el("div", { class: "content-title" }, [el("h2", { text: t.addresses }), rangeLabel]),
           el("span", { class: "spacer" }),
           viewControls,
           pager,
-          decodedBox
+          decodedBox,
+          mergeButton
         ]);
 
         const footnote = el("div", { class: "hint", text: t.writeHint });
@@ -1180,7 +1224,14 @@
         root.appendChild(createSplitter(root, sidebar, content));
         root.appendChild(content);
 
-        let cellCache = { key: "", cells: [] };
+        // Each scope keeps its own cell cache so several grids can coexist in
+        // the merged view. A null / rebuilt container invalidates its cache.
+        const cellCache = new Map();
+        function scopeCache(scope) {
+          let cache = cellCache.get(scope.id);
+          if (!cache) { cache = { key: "", cells: [], rc: 1 }; cellCache.set(scope.id, cache); }
+          return cache;
+        }
         // Filled by renderDeviceForm so status updates can refresh the form
         // without rebuilding it, which would steal focus from a field.
         let deviceFormRefs = null;
@@ -1226,6 +1277,7 @@
         function persistScopes() {
           writeStorage(scopeKey, {
             activeId: state.activeId,
+            mergeView: state.mergeView,
             scopes: persistable(state.scopes, SCOPE_KEYS)
           });
         }
@@ -1837,20 +1889,12 @@
           return task;
         }
 
-        async function readActive() {
-          const scope = active();
-          if (!scope || state.busy) return;
+        /** Reads one range and records its result. No rendering: callers decide
+         *  whether to repaint afterwards, which lets the merged view read every
+         *  range of a device in one pass. */
+        async function readScope(scope) {
           const device = deviceOf(scope);
-          if (!device) {
-            renderHeaderDevice();
-            return;
-          }
-          if (device.status !== "open") {
-            // The first read of a device is also the thing that connects it.
-            const opened = await openDevice(device, { quiet: true });
-            if (!opened) return;
-          }
-          state.busy = true;
+          if (!device) return;
           const started = Date.now();
           try {
             const response = await invoke("modbus/read", {
@@ -1858,13 +1902,12 @@
             }, 20000);
             const result = (response.results || [])[0] || { ok: false, error: "no result" };
             const durationMs = Date.now() - started;
-            state.tx += 1;
             if (result.ok === false) {
               state.err += 1;
               scope.result = { registers: [], values: [], error: result.error || "error", at: new Date() };
               logRead(scope, device, false, result.error || "error", durationMs);
               noteTransportFailure(device, result.error);
-              toast(result.error || "Read failed", "error");
+              if (!state.mergeView) toast(result.error || "Read failed", "error");
             } else {
               const regCount = (result.registers || []).length;
               const valueCount = isBitArea(scope.area)
@@ -1879,19 +1922,39 @@
                 at: new Date()
               };
             }
-            updateCounters();
-            renderScopeList();
-            renderGrid();
           } catch (error) {
             state.tx += 1;
             state.err += 1;
             scope.result = { registers: [], values: [], error: errorText(error), at: new Date() };
             logRead(scope, device, false, errorText(error), Date.now() - started);
             noteTransportFailure(device, errorText(error));
+            if (!state.mergeView) toast(errorText(error), "error");
+          }
+        }
+
+        async function readActive() {
+          const merge = state.mergeView;
+          const scope = active();
+          const device = merge ? selectedDevice() : deviceOf(scope);
+          if (!device || state.busy) {
+            if (!merge) renderHeaderDevice();
+            return;
+          }
+          if (device.status !== "open") {
+            // The first read of a device is also the thing that connects it.
+            const opened = await openDevice(device, { quiet: true });
+            if (!opened) return;
+          }
+          state.busy = true;
+          try {
+            if (merge) {
+              for (const each of scopesOf(device.id)) await readScope(each);
+            } else {
+              await readScope(scope);
+            }
             updateCounters();
             renderScopeList();
             renderGrid();
-            toast(errorText(error), "error");
           } finally {
             state.busy = false;
           }
@@ -2007,6 +2070,15 @@
           renderGrid(true);
         }
 
+        /** Paging for a specific range, used by the merged view's per-block controls. */
+        function turnPageScope(scope, delta) {
+          if (!scope) return;
+          const pages = pageCount(scope);
+          if (pages <= 1) return;
+          scope.page = (Math.min(pages - 1, Math.max(0, (scope.page || 0) + delta)));
+          renderGrid(true);
+        }
+
         /** Columns and rows are display-only, so they never trigger a read. */
         function setLayout(key, raw, min, max, input) {
           const scope = active();
@@ -2028,9 +2100,88 @@
         }
 
         // ---- the address/value grid -----------------------------------------
+        // The workbench can show one range at a time (single view) or stack all
+        // of the selected device's ranges into one scrollable page (merged
+        // view). Both share the same per-range cell builder; only the container
+        // and the top header differ.
         function renderGrid(force) {
+          // Never repaint while a cell is being edited inline: the polling
+          // timer would otherwise tear the input out from under the user.
+          if (editingCell) return;
           const scope = active();
-          if (!scope) return;
+          if (!scope && !state.mergeView) return;
+          if (state.mergeView) renderMerged(force);
+          else renderSingle(force);
+          syncGridHeader(scope);
+        }
+
+        function renderSingle(force) {
+          gridWrap.textContent = "";
+          gridWrap.appendChild(valueGrid);
+          renderScopeGrid(valueGrid, active(), force);
+        }
+
+        function renderMerged(force) {
+          const device = selectedDevice();
+          const visible = device ? scopesOf(device.id) : state.scopes;
+          gridWrap.textContent = "";
+          if (!visible.length) {
+            gridWrap.appendChild(el("div", { class: "empty-list", text: t.emptyGrid }));
+            return;
+          }
+          for (const scope of visible) {
+            const rc = isBitArea(scope.area) ? 1 : registerCount(scope.dataType);
+            const endAddr = scope.start + Math.max(1, scope.quantity) * rc - 1;
+            const block = el("div", {
+              class: "range-block" + (scope.id === state.activeId ? " active" : "")
+            });
+            const head = el("div", { class: "range-block-head" }, [
+              el("span", { class: "rb-title", text: scopeTitle(scope) }),
+              el("span", {
+                class: "rb-meta",
+                text: `${formatAddress(scope.start)}–${formatAddress(endAddr)} · ${t[scope.area] || scope.area} · ${scope.dataType}`
+              })
+            ]);
+            // Each block shows its own decoded value for register areas.
+            if (!isBitArea(scope.area) && scope.result && !scope.result.error) {
+              const drc = registerCount(scope.dataType);
+              const slice = (scope.result.registers || []).slice(0, drc);
+              if (slice.length >= drc) {
+                head.appendChild(el("span", {
+                  class: "rb-decoded",
+                  text: formatValue(decodeRegistersClient(slice, scope.dataType, scope.byteOrder, scope.wordOrder))
+                }));
+              }
+            }
+            const pages = pageCount(scope);
+            if (pages > 1) {
+              const pageInfo = el("span", { class: "page-info", text: `${scope.page + 1} / ${pages}` });
+              const prev = el("button", {
+                class: "icon ghost", text: "‹", title: t.prevPage,
+                onclick: (event) => { event.stopPropagation(); turnPageScope(scope, -1); }
+              });
+              const next = el("button", {
+                class: "icon ghost", text: "›", title: t.nextPage,
+                onclick: (event) => { event.stopPropagation(); turnPageScope(scope, 1); }
+              });
+              head.appendChild(el("div", { class: "rb-pager" }, [prev, pageInfo, next]));
+            }
+            head.addEventListener("click", () => selectScope(scope));
+            block.appendChild(head);
+            if (scope.result && scope.result.error) {
+              block.appendChild(el("div", { class: "rb-error", text: scope.result.error }));
+            }
+            const grid = el("div", { class: "value-grid" });
+            block.appendChild(grid);
+            gridWrap.appendChild(block);
+            // The block's grid is recreated every render, so drop the stale cache.
+            cellCache.delete(scope.id);
+            renderScopeGrid(grid, scope, true);
+          }
+        }
+
+        /** Builds the cells of one range into `gridEl`; owns that range's cache. */
+        function renderScopeGrid(gridEl, scope, force) {
           const bit = isBitArea(scope.area);
           // How many registers one value occupies. Every cell and every address
           // step is measured in these, so a uint32 grid covers twice the
@@ -2045,37 +2196,15 @@
           const shown = Math.min(capacity, total - first);
           const key = `${scope.area}:${scope.start}:${total}:${bit ? "b" : "r"}:${scope.columns}:${scope.rows}:${scope.page}:${rc}`;
 
-          const rangeStart = scope.start + first * rc;
-          const rangeEnd = rangeStart + shown * rc - 1;
-          const countText = pages > 1 ? `${shown} / ${total} ${t.items}` : `${total} ${t.items}`;
-          rangeLabel.textContent = `${formatAddress(rangeStart)} – ${formatAddress(rangeEnd)} · ${countText}`;
-
-          pager.style.display = pages > 1 ? "" : "none";
-          pageInfo.textContent = pages > 1 ? `${scope.page + 1} / ${pages}` : "";
-          prevButton.disabled = scope.page <= 0;
-          nextButton.disabled = scope.page >= pages - 1;
-
-          // A device that cannot be reached explains an empty grid better than
-          // the last read error does, so it takes precedence.
-          const device = deviceOf(scope);
-          const deviceDown = device && device.status === "error"
-            ? `${deviceLabel(device)} · ${device.error || t.deviceError}`
-            : "";
-          const error = deviceDown || (scope.result && scope.result.error) || "";
-          errorBar.style.display = error ? "" : "none";
-          errorBar.textContent = error;
-          footnote.textContent = scope.result ? t.writeHint : t.emptyTable;
-
-          renderDecoded(scope);
-
-          if (!force && cellCache.key === key && cellCache.cells.length === shown) {
+          const cache = scopeCache(scope);
+          if (!force && cache.key === key && cache.cells.length === shown) {
             updateCells(scope, first);
             return;
           }
 
-          valueGrid.style.setProperty("--cols", String(Math.max(1, scope.columns)));
-          valueGrid.textContent = "";
-          cellCache = { key, cells: [], rc };
+          gridEl.style.setProperty("--cols", String(Math.max(1, scope.columns)));
+          gridEl.textContent = "";
+          cache.key = key; cache.cells = []; cache.rc = rc;
 
           for (let offset = 0; offset < shown; offset += 1) {
             const index = first + offset;
@@ -2100,7 +2229,7 @@
                 holder.classList.add("readonly");
                 holder.title = `${formatAddress(address)} · ${t.readOnlyArea}`;
               }
-              cellCache.cells.push({ cell, holder, bit: bitState, rawCell, address });
+              cache.cells.push({ cell, holder, bit: bitState, rawCell, address });
             } else {
               const holder = el("span", { class: "cell-value v" });
               cell.appendChild(holder);
@@ -2114,19 +2243,65 @@
                 holder.classList.add("readonly");
                 holder.title = `${formatAddress(address)} · ${t.readOnlyArea}`;
               }
-              cellCache.cells.push({ cell, holder, rawCell, address });
+              cache.cells.push({ cell, holder, rawCell, address });
             }
-            valueGrid.appendChild(cell);
+            gridEl.appendChild(cell);
           }
           updateCells(scope, first);
+        }
+
+        /** Updates the top header (range label, pager, decoded, error, hint)
+         *  from the active range. In the merged view the per-range details live
+         *  inside each block, so the global ones are hidden. */
+        function syncGridHeader(scope) {
+          if (!scope) {
+            rangeLabel.textContent = "";
+            pager.style.display = "none";
+            decodedBox.style.display = "none";
+            errorBar.style.display = "none";
+            footnote.textContent = "";
+            return;
+          }
+          const single = !state.mergeView;
+          const bit = isBitArea(scope.area);
+          const rc = bit ? 1 : registerCount(scope.dataType);
+          const capacity = pageCapacity(scope);
+          const total = Math.max(1, scope.quantity);
+          const pages = pageCount(scope);
+          const first = scope.page * capacity;
+          const shown = Math.min(capacity, total - first);
+          const rangeStart = scope.start + first * rc;
+          const rangeEnd = rangeStart + shown * rc - 1;
+          const countText = pages > 1 ? `${shown} / ${total} ${t.items}` : `${total} ${t.items}`;
+          rangeLabel.textContent = `${formatAddress(rangeStart)} – ${formatAddress(rangeEnd)} · ${countText}`;
+
+          pager.style.display = (single && pages > 1) ? "" : "none";
+          pageInfo.textContent = pages > 1 ? `${scope.page + 1} / ${pages}` : "";
+          prevButton.disabled = scope.page <= 0;
+          nextButton.disabled = scope.page >= pages - 1;
+
+          // A device that cannot be reached explains an empty grid better than
+          // the last read error does, so it takes precedence.
+          const device = deviceOf(scope);
+          const deviceDown = device && device.status === "error"
+            ? `${deviceLabel(device)} · ${device.error || t.deviceError}`
+            : "";
+          const error = deviceDown || (scope.result && scope.result.error) || "";
+          errorBar.style.display = (single && error) ? "" : "none";
+          errorBar.textContent = error;
+          footnote.textContent = scope.result ? t.writeHint : t.emptyTable;
+
+          decodedBox.style.display = single ? "" : "none";
+          if (single) renderDecoded(scope);
         }
 
         function updateCells(scope, first) {
           const bit = isBitArea(scope.area);
           const rc = bit ? 1 : registerCount(scope.dataType);
           const result = scope.result;
-          for (let offset = 0; offset < cellCache.cells.length; offset += 1) {
-            const cell = cellCache.cells[offset];
+          const cache = scopeCache(scope);
+          for (let offset = 0; offset < cache.cells.length; offset += 1) {
+            const cell = cache.cells[offset];
             // Never overwrite the cell the user is editing inline.
             if (cell.holder.classList.contains("editing")) continue;
             const valueIndex = first + offset;
@@ -2321,8 +2496,16 @@
 
         function startPolling() {
           const scope = active();
-          if (!scope) return;
-          state.timer = setInterval(readActive, scope.intervalMs);
+          if (!scope && !state.mergeView) return;
+          // In the merged view several ranges may ask for different scan
+          // periods, so the single timer runs at the fastest one.
+          const intervalMs = state.mergeView
+            ? (() => {
+                const visible = scopesOf(selectedDevice()?.id || "");
+                return visible.length ? Math.min(...visible.map((s) => s.intervalMs)) : (scope ? scope.intervalMs : 1000);
+              })()
+            : (scope ? scope.intervalMs : 1000);
+          state.timer = setInterval(readActive, intervalMs);
           pollButton.textContent = t.stop;
           pollButton.setAttribute("aria-pressed", "true");
           readActive();
@@ -2417,12 +2600,14 @@
             state.activeId = scopesOf(state.selectedDeviceId)[0]?.id || null;
           }
           if (state.activeId) state.selectedDeviceId = active().deviceId;
+          state.mergeView = !!(savedScopes && savedScopes.mergeView);
 
           persistDevices();
           persistScopes();
           updateCounters();
           renderSidebar();
           renderHeaderDevice();
+          syncMergeButton();
 
           // Reuse sessions the backend already holds (a UI reload keeps them),
           // then open the rest — the active one first so the grid fills fast.
