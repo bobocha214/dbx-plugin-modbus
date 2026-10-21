@@ -1,0 +1,26 @@
+{
+  "name": "Modbus TCP",
+  "description": "Read and write Modbus TCP registers on PLCs, gateways and remote IO couplers, with polling and guarded writes.",
+  "icon": "assets/plugin.svg",
+  "tags": [
+    "modbus",
+    "modbus-tcp",
+    "plc",
+    "industrial",
+    "iot",
+    "scada"
+  ],
+  "permissions": [
+    "host.storage"
+  ],
+  "source": "https://github.com/bobocha214/dbx-plugin-modbus",
+  "homepage": "https://github.com/bobocha214/dbx-plugin-modbus",
+  "license": "MIT",
+  "releaseNotes": "Initial release: Modbus TCP connection provider, register grid workbench with periodic polling, byte order and data type decoding, and guarded writes.",
+  "localizations": {
+    "zh-CN": {
+      "name": "Modbus TCP",
+      "description": "读写 PLC、网关和远程 IO 上的 Modbus TCP 寄存器，支持周期轮询与带二次确认的写入。"
+    }
+  }
+}
