@@ -180,6 +180,8 @@
         flex: 0 1 auto; max-height: 44%; overflow: auto;
         padding: 6px; border-bottom: var(--dbx-line);
       }
+      /* The Modbus device list rides on the scope shell but keeps its own rhythm. */
+      .device-list { display: flex; flex-direction: column; gap: 2px; padding: 4px 8px 10px; }
       .scope-item {
         display: flex; align-items: center; gap: 8px;
         padding: 6px 8px; border-radius: var(--dbx-radius);
@@ -508,50 +510,6 @@
       .splitter:hover::after, .splitter.dragging::after { opacity: .5; }
       body.resizing { cursor: col-resize; user-select: none; }
 
-      /* ---------------------------------------------------------------- tree */
-      .tree { padding: 4px; }
-      .tree-row {
-        display: flex; align-items: center; gap: 4px;
-        padding: 3px 6px; border-radius: var(--dbx-radius);
-        cursor: pointer; white-space: nowrap; font-size: 12.5px;
-      }
-      .tree-row:hover { background: var(--dbx-muted); }
-      .tree-row.selected { background: color-mix(in srgb, var(--dbx-primary) 14%, transparent); }
-      .tree-row.dim { opacity: .45; }
-      .tree-row.highlight .name { font-weight: 600; }
-      .twisty {
-        width: 12px; flex: none; text-align: center; font-size: 9px;
-        color: var(--dbx-muted-fg);
-      }
-      .nclass {
-        width: 14px; flex: none; text-align: center;
-        font-family: var(--dbx-mono); font-size: 10px; color: var(--dbx-muted-fg);
-      }
-      .nclass.object { color: var(--dbx-primary); }
-      .nclass.variable { color: var(--dbx-success); }
-      .nclass.method { color: #9333ea; }
-      .nclass.view { color: #0891b2; }
-      .nclass.type { color: #d97706; }
-      [data-dbx-theme="dark"] .nclass.method { color: #c084fc; }
-      [data-dbx-theme="dark"] .nclass.view { color: #22d3ee; }
-      [data-dbx-theme="dark"] .nclass.type { color: #fbbf24; }
-      .tree .name { overflow: hidden; text-overflow: ellipsis; }
-
-      /* ------------------------------------------------------------ attributes */
-      .attrs-panel { flex: 0 0 auto; max-height: 40%; display: flex; flex-direction: column; border-top: var(--dbx-line); }
-      .attrs-head {
-        flex: none; display: flex; align-items: center; gap: 8px;
-        height: 30px; padding: 0 14px;
-        font-size: 10.5px; font-weight: 600; letter-spacing: .06em;
-        text-transform: uppercase; color: var(--dbx-muted-fg);
-        background: var(--dbx-muted);
-      }
-      .attrs { overflow: auto; padding: 4px 0 8px; }
-      .attr { display: flex; gap: 10px; padding: 3px 14px; }
-      .attr + .attr { border-top: 1px solid color-mix(in srgb, var(--dbx-border) 50%, transparent); }
-      .attr .k { flex: 0 0 108px; font-size: 11.5px; color: var(--dbx-muted-fg); }
-      .attr .v { flex: 1; min-width: 0; font-family: var(--dbx-mono); font-size: 11.5px; word-break: break-all; }
-      .kv { font-family: var(--dbx-mono); }
 
       /* -------------------------------------------------------------- dialogs */
       dialog {
@@ -588,12 +546,13 @@
       }
       .toast.error { border-left-color: var(--dbx-destructive); }
       .toast.info { border-left-color: var(--dbx-primary); }
+
     </style>
   </head>
   <body>
     <div id="app">
       <header class="app-header">
-        <span class="brand"><span class="brand-dot"></span><span id="title">Industrial Protocols</span></span>
+        <span class="brand"><span class="brand-dot"></span><span id="title">Modbus TCP</span></span>
         <span class="conn" id="conn"><span class="dot"></span><span class="id" id="conn-id">…</span></span>
         <span class="spacer"></span>
         <span class="header-extra" id="appbar-extra"></span>
@@ -606,7 +565,6 @@
 
       const PLUGIN_ID = "io.github.yuzhi.everlink";
       const MODBUS_WORKBENCH = PLUGIN_ID + ".modbus.workbench";
-      const OPCUA_WORKBENCH = PLUGIN_ID + ".opcua.workbench";
 
       const host = window.dbxPlugin;
       let locale = "en";
@@ -614,29 +572,20 @@
 
       const COPY = {
         en: {
-          modbus: "Modbus TCP", opcua: "OPC UA",
+          modbus: "Modbus TCP",
           poll: "Poll", stop: "Stop", readOnce: "Read", readAll: "Read all",
           interval: "Scan rate", ms: "ms",
           area: "Area", address: "Address", quantity: "Values", dataType: "Data type", quantityHintBits: "Number of coils / discrete inputs.", quantityHintRegs: "Number of values; each spans {rc} × 16-bit registers.",
           byteOrder: "Byte order", wordOrder: "Word order", unit: "Slave id",
           value: "Value", raw: "Raw value", state: "State", format: "Display",
-          subscribe: "Subscribe", unsubscribe: "Unsubscribe",
-          nodeId: "Node id", addNodeHint: "Type a node id and press Enter to add it to the watch list",
-          browse: "Address space", watch: "Data access view", attributes: "Attributes",
-          browseHint: "Click to expand. Double-click adds a node to the watch list.",
-          attrHint: "Select a node in the address space to see its attributes.",
-          namespace: "Namespace", allNamespaces: "All namespaces", refresh: "Rebrowse",
-          emptyNodes: "Nothing is being watched. Browse the address space, or type a node id above.",
           emptyGrid: "No registers to show yet.",
           emptyTable: "Press Read to load this range.",
           confirmWriteBody: "This sends a write request to the device. Check the target and the value before continuing.",
           cancel: "Cancel", confirm: "Write now",
           notConnected: "no connection", connected: "connected",
           noConnection: "This workbench was opened without a connection. Open it from a saved connection in the sidebar.",
-          loading: "Loading…", noChildren: "no children",
           tx: "Tx", err: "Err",
-          quality: "Quality", timestamp: "Timestamp",
-          writeTitleRegister: "Write register", writeTitleCoil: "Write coil", writeTitleNode: "Write node",
+          writeTitleRegister: "Write register", writeTitleCoil: "Write coil",
           writeHint: "Double-click a value to write it. Read-only areas are not editable.",
           start: "Start address", scope: "Range", config: "Configuration",
           scopes: "Configurations", addScope: "New configuration", removeScope: "Delete",
@@ -669,7 +618,7 @@
           readOnlyArea: "read-only"
         },
         zh: {
-          modbus: "Modbus TCP", opcua: "OPC UA",
+          modbus: "Modbus TCP",
           poll: "轮询", stop: "停止", readOnce: "读取", readAll: "读取全部",
           interval: "扫描周期", ms: "毫秒",
           area: "区域", address: "地址", quantity: "值数量", dataType: "数据类型", quantityHintBits: "线圈 / 离散输入的个数。", quantityHintRegs: "值的个数；每个占 {rc} 个 16 位寄存器。",
@@ -2646,455 +2595,6 @@
         });
       }
 
-      // ---------------------------------------------------------------------
-      // OPC UA workbench
-      // ---------------------------------------------------------------------
-      const NAMESPACE_ROOT = "i=84"; // Root folder: Objects / Types / Views
-
-      /** Single letter per node class, colour-coded, standing in for an icon. */
-      function classGlyph(nodeClass) {
-        const name = String(nodeClass || "");
-        if (name.startsWith("Object")) return ["O", "object"];
-        if (name.startsWith("Variable")) return ["V", "variable"];
-        if (name.startsWith("Method")) return ["M", "method"];
-        if (name.startsWith("View")) return ["W", "view"];
-        if (name.includes("Type")) return ["T", "type"];
-        return ["·", ""];
-      }
-
-      function createOpcuaWorkbench(root) {
-        const storageKey = storageKeyFor("opcua.nodes");
-        const state = {
-          nodes: [], subscriptionId: null, intervalMs: 1000, busy: false,
-          selected: null, selectedAttributes: null, namespaces: [], highlight: ""
-        };
-        const childrenCache = new Map();
-        const treeRows = new Map();
-
-        // ---- header actions -------------------------------------------------
-        const readAllButton = el("button", { text: t.readAll, onclick: () => readAll() });
-        const subscribeButton = el("button", { class: "primary", text: t.subscribe, onclick: () => subscribe() });
-        const unsubscribeButton = el("button", { text: t.unsubscribe, onclick: () => unsubscribe() });
-        document.querySelector("#appbar-extra").append(readAllButton, subscribeButton, unsubscribeButton);
-
-        // ---- sidebar: address space -----------------------------------------
-        const tree = el("div", { class: "tree" });
-        const namespaceSelect = el("select", {
-          style: "width:100%",
-          onchange: (event) => { state.highlight = event.target.value; applyHighlight(); }
-        });
-        const rebrowseButton = el("button", {
-          class: "icon ghost", text: "⟳", title: t.refresh,
-          onclick: () => { childrenCache.clear(); loadRoot(); }
-        });
-
-        const sidebar = el("aside", { class: "sidebar" }, [
-          el("div", { class: "sidebar-head" }, [
-            el("span", { class: "label", text: t.browse }),
-            el("span", { class: "spacer" }),
-            rebrowseButton
-          ]),
-          el("div", { class: "config", style: "flex:none;padding:8px 10px 6px" }, [
-            el("div", { class: "form-row" }, [
-              el("label", { text: t.namespace }),
-              namespaceSelect
-            ])
-          ]),
-          el("div", { style: "flex:1;min-height:0;overflow:auto;border-top:var(--dbx-line)" }, [tree]),
-          el("div", { class: "hint", text: t.browseHint })
-        ]);
-
-        // ---- content: watched nodes and values ------------------------------
-        const watchHead = el("thead");
-        const watchBody = el("tbody");
-        const watchTable = el("table", {}, [watchHead, watchBody]);
-        const watchWrap = el("div", { class: "table-wrap" }, [watchTable]);
-
-        const nodeInput = el("input", {
-          type: "text", placeholder: "ns=3;s=Temperature", style: "width:230px",
-          title: t.addNodeHint,
-          onkeydown: (event) => {
-            if (event.key !== "Enter") return;
-            const value = nodeInput.value.trim();
-            if (!value) return;
-            addNode(value, value);
-            nodeInput.value = "";
-          }
-        });
-
-        // The read/subscribe actions live in the header; the content head only
-        // holds the node id field, so nothing is offered twice.
-        const watchCount = el("span", { class: "count" });
-        const contentHead = el("div", { class: "content-head" }, [
-          el("div", { class: "content-title" }, [
-            el("h2", { text: t.watch }),
-            watchCount
-          ]),
-          el("span", { class: "spacer" }),
-          nodeInput
-        ]);
-
-        const attrs = el("div", { class: "attrs" });
-        const attrsPanel = el("div", { class: "attrs-panel" }, [
-          el("div", { class: "attrs-head" }, [
-            el("span", { text: t.attributes }),
-            el("span", { class: "spacer" }),
-            el("span", { id: "attr-node", style: "font-family:var(--dbx-mono);text-transform:none;letter-spacing:0" })
-          ]),
-          attrs
-        ]);
-
-        const content = el("section", { class: "content" }, [
-          contentHead, watchWrap, attrsPanel
-        ]);
-
-        root.appendChild(sidebar);
-        root.appendChild(createSplitter(root, sidebar, content));
-        root.appendChild(content);
-
-        function persist() {
-          writeStorage(storageKey, persistable(state.nodes, ["nodeId", "label"]));
-        }
-
-        // ---- watch list ------------------------------------------------------
-        function renderWatch() {
-          watchHead.textContent = "";
-          watchHead.appendChild(el("tr", {}, [
-            el("th", { text: t.nodeId }),
-            el("th", { text: t.value }),
-            el("th", { text: t.dataType }),
-            el("th", { text: t.timestamp }),
-            el("th", { text: t.quality }),
-            el("th", { text: "" })
-          ]));
-
-          watchBody.textContent = "";
-          watchCount.textContent = state.nodes.length ? `${state.nodes.length} ${t.items}` : "";
-
-          if (!state.nodes.length) {
-            watchBody.appendChild(el("tr", {}, [
-              el("td", { colspan: "6" }, [el("div", { class: "empty", text: t.emptyNodes })])
-            ]));
-            return;
-          }
-
-          for (const node of state.nodes) {
-            const bad = node.status !== undefined && node.status !== "" && !node.good;
-            const tr = el("tr");
-            tr.appendChild(el("td", { class: "kv", text: node.nodeId, title: node.nodeId }));
-            const valueCell = el("td", { class: "val" });
-            valueCell.appendChild(el("span", {
-              class: "cell-value", title: t.writeHint,
-              onclick: () => writeNode(node),
-              text: formatValue(node.value)
-            }));
-            tr.appendChild(valueCell);
-            tr.appendChild(el("td", { class: "note", text: node.dataType || "" }));
-            tr.appendChild(el("td", {
-              class: "note", text: node.sourceTimestamp ? shortTime(node.sourceTimestamp) : ""
-            }));
-            tr.appendChild(el("td", {
-              class: node.good ? "good" : (bad ? "bad" : "note"),
-              text: node.status || (node.good ? "Good" : "")
-            }));
-            tr.appendChild(el("td", {}, [
-              el("button", {
-                class: "icon ghost danger", text: "✕", title: t.removeScope,
-                onclick: () => {
-                  state.nodes = state.nodes.filter((entry) => entry !== node);
-                  persist();
-                  renderWatch();
-                  collectNamespaces();
-                }
-              })
-            ]));
-            watchBody.appendChild(tr);
-          }
-        }
-
-        function shortTime(value) {
-          const text = String(value);
-          const match = text.match(/T(\d{2}:\d{2}:\d{2})/);
-          return match ? match[1] : text;
-        }
-
-        function addNode(nodeId, label) {
-          if (!nodeId || state.nodes.some((node) => node.nodeId === nodeId)) return;
-          state.nodes.push({ nodeId, label: label || "", value: null, dataType: "", status: "", good: false });
-          persist();
-          renderWatch();
-          collectNamespaces();
-          readAll();
-        }
-
-        // ---- address space ---------------------------------------------------
-        async function browseChildren(nodeId) {
-          const response = await invoke("opcua/browse", { connectionId, nodeId, direction: "forward", maxReferences: 1000 }, 30000);
-          return response.references || [];
-        }
-
-        function renderTreeRow(container, reference, depth) {
-          const nodeId = reference.nodeId;
-          const label = reference.displayName || reference.browseName;
-          const row = el("div", {
-            class: "tree-row", style: `padding-left:${depth * 13 + 4}px`, title: nodeId
-          });
-          const twisty = el("span", { class: "twisty", text: "▸" });
-          const [glyph, glyphClass] = classGlyph(reference.nodeClass);
-          row.appendChild(twisty);
-          row.appendChild(el("span", { class: "nclass " + glyphClass, text: glyph }));
-          row.appendChild(el("span", { class: "name", text: label }));
-          container.appendChild(row);
-
-          const childrenBox = el("div", { style: "display:none" });
-          container.appendChild(childrenBox);
-          treeRows.set(nodeId, row);
-
-          let loaded = false;
-          let open = false;
-          const toggle = async () => {
-            if (open) {
-              open = false;
-              childrenBox.style.display = "none";
-              twisty.textContent = "▸";
-              return;
-            }
-            if (!loaded) {
-              twisty.textContent = "…";
-              try {
-                const references = childrenCache.has(nodeId) ? childrenCache.get(nodeId) : await browseChildren(nodeId);
-                childrenCache.set(nodeId, references);
-                childrenBox.textContent = "";
-                if (!references.length) {
-                  childrenBox.appendChild(el("div", {
-                    class: "hint", style: `padding-left:${(depth + 1) * 13 + 22}px`,
-                    text: t.noChildren
-                  }));
-                }
-                for (const reference2 of references) renderTreeRow(childrenBox, reference2, depth + 1);
-                loaded = true;
-                // Newly revealed children can introduce namespaces the picker
-                // has not seen yet.
-                collectNamespaces();
-                applyHighlight();
-              } catch (error) {
-                twisty.textContent = "▸";
-                toast(errorText(error), "error");
-                return;
-              }
-            }
-            open = true;
-            childrenBox.style.display = "";
-            twisty.textContent = "▾";
-          };
-
-          row.addEventListener("click", () => { selectNode(nodeId); toggle(); });
-          row.addEventListener("dblclick", (event) => { event.stopPropagation(); addNode(nodeId, label); });
-        }
-
-        // One namespace is highlighted at a time rather than filtering the rest
-        // out, which keeps the tree shape stable while drawing the eye.
-        function applyHighlight() {
-          for (const [nodeId, row] of treeRows) {
-            if (!state.highlight) { row.classList.remove("dim", "highlight"); continue; }
-            const namespace = namespaceOf(nodeId);
-            row.classList.toggle("highlight", namespace === state.highlight);
-            row.classList.toggle("dim", namespace !== state.highlight);
-          }
-        }
-
-        function namespaceOf(nodeId) {
-          const match = String(nodeId).match(/ns=(\d+)/);
-          return match ? match[1] : "0";
-        }
-
-        function collectNamespaces() {
-          const found = new Set();
-          for (const nodeId of treeRows.keys()) found.add(namespaceOf(nodeId));
-          for (const node of state.nodes) found.add(namespaceOf(node.nodeId));
-          state.namespaces = [...found].sort((a, b) => Number(a) - Number(b));
-          namespaceSelect.textContent = "";
-          namespaceSelect.appendChild(el("option", { value: "", text: t.allNamespaces }));
-          for (const index of state.namespaces) {
-            namespaceSelect.appendChild(el("option", {
-              value: index, text: `ns=${index}`,
-              selected: state.highlight === index ? "selected" : null
-            }));
-          }
-        }
-
-        async function loadRoot() {
-          tree.textContent = "";
-          treeRows.clear();
-          tree.appendChild(el("div", { class: "hint", text: t.loading }));
-          try {
-            const roots = await browseChildren(NAMESPACE_ROOT);
-            tree.textContent = "";
-            for (const reference of roots) renderTreeRow(tree, reference, 0);
-            if (!roots.length) tree.appendChild(el("div", { class: "hint", text: t.noChildren }));
-            collectNamespaces();
-            applyHighlight();
-          } catch (error) {
-            tree.textContent = "";
-            tree.appendChild(el("div", { class: "hint", text: errorText(error) }));
-          }
-        }
-
-        // ---- attributes ------------------------------------------------------
-        function renderAttributes() {
-          attrs.textContent = "";
-          const heading = document.getElementById("attr-node");
-          if (heading) heading.textContent = state.selected || "";
-          if (!state.selected) {
-            attrs.appendChild(el("div", { class: "empty", text: t.attrHint }));
-            return;
-          }
-          const rows = [
-            [t.nodeId, state.selected],
-            ...(state.selectedAttributes || [])
-          ];
-          for (const [key, value] of rows) {
-            attrs.appendChild(el("div", { class: "attr" }, [
-              el("span", { class: "k", text: key }),
-              el("span", { class: "v", text: value })
-            ]));
-          }
-        }
-
-        // Reading a node reuses the normal read path so the pane shows exactly
-        // what the device reports, not a cached copy.
-        async function selectNode(nodeId) {
-          state.selected = nodeId;
-          state.selectedAttributes = null;
-          for (const [id, row] of treeRows) row.classList.toggle("selected", id === nodeId);
-          renderAttributes();
-          try {
-            const response = await invoke("opcua/read", { connectionId, nodeIds: [nodeId] }, 30000);
-            const first = (response.results || [])[0] || {};
-            state.selectedAttributes = [
-              [t.value, formatValue(first.value)],
-              [t.dataType, first.dataType || ""],
-              [t.quality, first.status || ""],
-              ["Source ts", first.sourceTimestamp || ""],
-              ["Server ts", first.serverTimestamp || ""]
-            ];
-          } catch (error) {
-            state.selectedAttributes = [["Error", errorText(error)]];
-          }
-          renderAttributes();
-        }
-
-        // ---- reading ---------------------------------------------------------
-        async function readAll() {
-          if (state.busy || !state.nodes.length) return;
-          state.busy = true;
-          try {
-            const response = await invoke("opcua/read", {
-              connectionId, nodeIds: state.nodes.map((node) => node.nodeId)
-            }, 30000);
-            (response.results || []).forEach((result, index) => {
-              const node = state.nodes[index];
-              if (!node) return;
-              node.value = result.value;
-              node.dataType = result.dataType;
-              node.status = result.status;
-              node.good = result.good;
-              node.sourceTimestamp = result.sourceTimestamp;
-            });
-            renderWatch();
-            const bad = (response.results || []).filter((result) => result.good === false);
-            if (bad.length) toast(`${bad.length}/${state.nodes.length} nodes are not good quality`, "error");
-          } catch (error) {
-            toast(errorText(error), "error");
-          } finally {
-            state.busy = false;
-          }
-        }
-
-        async function subscribe() {
-          if (!state.nodes.length) return;
-          try {
-            if (state.subscriptionId !== null) await unsubscribe();
-            const response = await invoke("opcua/subscribe", {
-              connectionId, nodeIds: state.nodes.map((node) => node.nodeId), intervalMs: state.intervalMs
-            }, 30000);
-            state.subscriptionId = response.subscriptionId;
-            subscribeButton.setAttribute("aria-pressed", "true");
-            toast(`Subscribed ${state.nodes.length} node(s) every ${response.intervalMs} ms`, "info");
-          } catch (error) {
-            toast(errorText(error), "error");
-          }
-        }
-
-        async function unsubscribe() {
-          if (state.subscriptionId === null) return;
-          const subscriptionId = state.subscriptionId;
-          state.subscriptionId = null;
-          subscribeButton.removeAttribute("aria-pressed");
-          try {
-            await invoke("opcua/unsubscribe", { connectionId, subscriptionId }, 20000);
-          } catch (error) {
-            toast(errorText(error), "error");
-          }
-        }
-
-        async function writeNode(node) {
-          const field = el("input", {
-            type: "text", value: node.value === null || node.value === undefined ? "" : formatValue(node.value),
-            placeholder: node.dataType && node.dataType !== "Null" ? node.dataType : "value"
-          });
-          const confirmed = await confirmDialog({
-            title: t.writeTitleNode,
-            body: t.confirmWriteBody,
-            payload: node.nodeId,
-            field, label: t.value,
-            confirmLabel: t.confirm
-          });
-          if (confirmed === null) return;
-          try {
-            const response = await invoke("opcua/write", {
-              connectionId,
-              writes: [{ nodeId: node.nodeId, dataType: node.dataType || "Auto", value: parseScalar(field.value) }]
-            }, 30000);
-            const result = (response.results || [])[0];
-            if (result && result.ok) {
-              toast(`${node.nodeId}: ${result.status}`, "info");
-              readAll();
-            } else {
-              toast((result && result.status) || "Write rejected", "error");
-            }
-          } catch (error) {
-            toast(errorText(error), "error");
-          }
-        }
-
-        // ---- live data changes -----------------------------------------------
-        if (host.onEvent) {
-          host.onEvent((event) => {
-            if (!event || event.method !== "opcua/dataChange") return;
-            const payload = event.params || {};
-            if (payload.connectionId !== connectionId) return;
-            const node = state.nodes.find((entry) => entry.nodeId === payload.nodeId);
-            if (!node) return;
-            node.value = payload.value;
-            node.dataType = payload.dataType;
-            node.status = payload.status;
-            node.good = Number(payload.statusCode) === 0;
-            node.sourceTimestamp = payload.sourceTimestamp;
-            renderWatch();
-          });
-        }
-
-        // ---- boot ------------------------------------------------------------
-        (async () => {
-          const saved = await readStorage(storageKey);
-          if (Array.isArray(saved)) state.nodes = saved.map((node) => ({ ...node, good: false }));
-          renderWatch();
-          renderAttributes();
-          await loadRoot();
-          if (state.nodes.length) readAll();
-        })();
-      }
 
       // ---------------------------------------------------------------------
       // Bootstrap
@@ -3106,15 +2606,15 @@
 
         const context = host.context || {};
         // The routing identity decides which workbench this page instance is.
-        const isOpcua = (host.contributionId || "") === OPCUA_WORKBENCH;
-        const other = isOpcua ? MODBUS_WORKBENCH : OPCUA_WORKBENCH;
-        if ((host.contributionId || "") === other) {
+        const contribution = host.contributionId || "";
+        if (contribution && contribution !== MODBUS_WORKBENCH) {
           // Should not happen, but fail loudly rather than render the wrong UI.
-          toast(`Unexpected contribution ${host.contributionId}`, "error");
+          toast(`Unexpected contribution ${contribution}`, "error");
         }
 
-        document.querySelector("#title").textContent = isOpcua ? t.opcua : t.modbus;
-        document.title = isOpcua ? t.opcua : t.modbus;
+        const title = t.modbus;
+        document.querySelector("#title").textContent = title;
+        document.title = title;
 
         const conn = document.querySelector("#conn");
         const connId = document.querySelector("#conn-id");
@@ -3129,11 +2629,9 @@
         connId.textContent = connectionId;
         connId.title = connectionId;
 
-        // Both workbenches share one shape: configuration on the left, values
-        // on the right.
+        // The Modbus workbench: configuration on the left, values on the right.
         const main = document.querySelector("#main");
-        if (isOpcua) createOpcuaWorkbench(main);
-        else createModbusWorkbench(main);
+        createModbusWorkbench(main);
       }
 
       window.addEventListener("dbx-plugin-env", (event) => {

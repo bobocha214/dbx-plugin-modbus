@@ -9,10 +9,30 @@ permissions:
 
 jobs:
   release:
-    uses: t8y2/dbx/.github/workflows/plugin-release-reusable.yml@plugin-sdk-v1
+    # Pinned to `main`. The ref emitted by `dbx-plugin create`, `plugin-sdk-v1`,
+    # no longer exists upstream (neither a tag nor a branch), so the run failed
+    # before any platform was built. Pin to a tag or commit SHA if you prefer an
+    # immutable ref.
+    uses: t8y2/dbx/.github/workflows/plugin-release-reusable.yml@main
     with:
       release-tag: ${{ github.event.release.tag_name }}
       package-command: dbx-plugin package .
       package-path: dist/*.dbxp
       metadata-path: dist/*.artifact.json
       plugin-cli-version: 0.1.6
+      rust-toolchain: stable
+      # No Go backend, so skip actions/setup-go entirely.
+      go-version: ""
+      # One runner per target. `dbx-plugin package` compiles the Rust sidecar
+      # natively on the host and never cross-compiles, so a Windows runner can
+      # only ever emit windows-x64; `--target` / DBX_PLUGIN_TARGET only labels
+      # the artifact. Keep runner and target paired and delete any entry whose
+      # runner your plan cannot allocate.
+      build-matrix: >-
+        {"include":[
+        {"runner":"ubuntu-24.04","target":"linux-x64"},
+        {"runner":"ubuntu-24.04-arm","target":"linux-arm64"},
+        {"runner":"windows-2022","target":"windows-x64"},
+        {"runner":"macos-15-intel","target":"darwin-x64"},
+        {"runner":"macos-15","target":"darwin-arm64"}
+        ]}

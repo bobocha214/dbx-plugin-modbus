@@ -1,19 +1,13 @@
-//! DBX sidecar for industrial field protocols.
+//! DBX sidecar for the Modbus TCP industrial protocol.
 //!
-//! Two connection providers share one native backend:
-//!
-//! * `modbus-tcp` — a hand-written Modbus TCP client ([`modbus`]).
-//! * `opcua` — an OPC UA client on top of `async-opcua` ([`opcua_client`]).
+//! `modbus-tcp` — a hand-written Modbus TCP client ([`modbus`]).
 //!
 //! DBX calls `PluginHandler::handle` on plain worker threads, so blocking
-//! sockets are safe here; the only async surface is OPC UA, which is driven
-//! through a shared runtime created once at start-up.
+//! sockets are safe here.
 
 mod modbus;
-mod opcua_client;
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -23,7 +17,6 @@ use dbx_plugin_sdk::{
 use serde_json::{json, Value};
 
 use modbus::{area_function_codes, decode_registers, encode_value, register_count, ModbusSession};
-use opcua_client::{OpcuaConfig, OpcuaSession};
 
 const PLUGIN_ID: &str = "io.github.yuzhi.everlink";
 const PLUGIN_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -35,7 +28,7 @@ const MAX_WRITE_TASKS: usize = 32;
 
 /// Tool names advertised through `mcp/tools`. Every one of them is read-only, so
 /// DBX runs them without a per-call confirmation prompt.
-const MCP_READ_TOOLS: [&str; 3] = ["modbus_read", "opcua_read", "opcua_browse"];
+const MCP_READ_TOOLS: [&str; 1] = ["modbus_read"];
 
 /// Per-connection Modbus defaults taken from the connection form.
 type ModbusDefaults = (String, String, u8);
@@ -61,30 +54,19 @@ fn split_endpoint(endpoint: &str) -> (String, u16) {
 
 enum Session {
     Modbus(ModbusSession),
-    Opcua(OpcuaSession),
 }
 
 struct Plugin {
     sessions: Mutex<HashMap<String, Arc<Session>>>,
     /// Byte order, word order and unit id captured when the connection opened.
     defaults: Mutex<HashMap<String, ModbusDefaults>>,
-    runtime: tokio::runtime::Runtime,
-    data_dir: PathBuf,
 }
 
 impl Plugin {
     fn new() -> Result<Self, String> {
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(2)
-            .enable_all()
-            .thread_name("dbx-industrial-opcua")
-            .build()
-            .map_err(|error| format!("cannot start the OPC UA runtime: {error}"))?;
         Ok(Self {
             sessions: Mutex::new(HashMap::new()),
             defaults: Mutex::new(HashMap::new()),
-            runtime,
-            data_dir: plugin_data_dir(),
         })
     }
 
@@ -140,19 +122,6 @@ impl Plugin {
     }
 }
 
-fn plugin_data_dir() -> PathBuf {
-    // DBX exports this for every sidecar run: plugin-data/<plugin-id>.
-    match std::env::var("DBX_PLUGIN_DATA_DIR") {
-        Ok(value) if !value.trim().is_empty() => PathBuf::from(value),
-        _ => std::env::temp_dir().join(PLUGIN_ID),
-    }
-}
-
-fn ensure_dir(path: &Path) -> Result<(), String> {
-    std::fs::create_dir_all(path)
-        .map_err(|error| format!("cannot create {}: {error}", path.display()))
-}
-
 // ---------------------------------------------------------------------------
 // Connection payload helpers
 //
@@ -162,7 +131,7 @@ fn ensure_dir(path: &Path) -> Result<(), String> {
 // working if the host flattens one of them.
 // ---------------------------------------------------------------------------
 
-fn field<'a>(connection: &'a Value, key: &str) -> Option<&'a Value> {
+pub fn field<'a>(connection: &'a Value, key: &str) -> Option<&'a Value> {
     connection
         .get(key)
         .or_else(|| connection.get("external_config").and_then(|config| config.get(key)))
@@ -175,7 +144,7 @@ fn field<'a>(connection: &'a Value, key: &str) -> Option<&'a Value> {
         })
 }
 
-fn text_field(connection: &Value, key: &str) -> Option<String> {
+pub fn text_field(connection: &Value, key: &str) -> Option<String> {
     field(connection, key)
         .and_then(Value::as_str)
         .map(str::trim)
@@ -197,7 +166,7 @@ fn param_u64(params: &Value, key: &str) -> Option<u64> {
     params.get(key).and_then(Value::as_u64)
 }
 
-fn number_field(connection: &Value, key: &str) -> Option<u64> {
+pub fn number_field(connection: &Value, key: &str) -> Option<u64> {
     field(connection, key).and_then(|value| {
         value
             .as_u64()
@@ -315,18 +284,6 @@ fn modbus_defaults(connection: &Value) -> ModbusDefaults {
     (byte_order, word_order, unit_id)
 }
 
-fn opcua_config(
-    connection: &Value,
-    params: &Value,
-    data_dir: &Path,
-) -> Result<OpcuaConfig, String> {
-    let (runtime_host, runtime_port) = runtime_endpoint(params);
-    // Client certificates and the trust store live in the plugin data
-    // directory, which DBX keeps across upgrades.
-    let pki_dir = data_dir.join("pki");
-    ensure_dir(&pki_dir)?;
-    OpcuaConfig::from_connection(connection, runtime_host.as_deref(), runtime_port, pki_dir)
-}
 
 // ---------------------------------------------------------------------------
 // Modbus operations
@@ -574,8 +531,8 @@ impl PluginHandler for Plugin {
         emitter: &PluginEmitter,
     ) -> Result<Value, PluginError> {
         match method {
-            "connection/test" => self.test_connection(&params),
-            "connection/connect" => self.connect(&params),
+            "connection/test" => self.test_connection(&params, emitter),
+            "connection/connect" => self.connect(&params, emitter),
             "connection/disconnect" => self.disconnect(&params),
             "modbus/read" => self.modbus_read(&params),
             "modbus/write" => self.modbus_write(&params),
@@ -586,11 +543,6 @@ impl PluginHandler for Plugin {
             "modbus/close" => self.modbus_close(&params),
             "modbus/devices" => self.modbus_devices(),
             "modbus/connection_info" => self.modbus_connection_info(&params),
-            "opcua/browse" => self.opcua_browse(&params),
-            "opcua/read" => self.opcua_read(&params),
-            "opcua/write" => self.opcua_write(&params),
-            "opcua/subscribe" => self.opcua_subscribe(&params, emitter),
-            "opcua/unsubscribe" => self.opcua_unsubscribe(&params),
             "mcp/tools" => Ok(self.mcp_tools()),
             "mcp/call" => self.mcp_call(&params),
             // Cheap identity probe, handy when debugging the sidecar wiring.
@@ -611,30 +563,10 @@ impl PluginHandler for Plugin {
 }
 
 impl Plugin {
-    fn test_connection(&self, params: &Value) -> Result<Value, PluginError> {
+    fn test_connection(&self, params: &Value, _emitter: &PluginEmitter) -> Result<Value, PluginError> {
         let connection = connection_object(params)?;
         let provider = provider_of(connection);
 
-        if provider == "opcua" {
-            // Connection lifecycle calls report failures in-band so the host can
-            // show them in the connection form; a JSON-RPC error would surface as
-            // a plugin fault instead of "these credentials were rejected".
-            return Ok(
-                match opcua_config(connection, params, &self.data_dir)
-                    .and_then(|config| OpcuaSession::connect(&self.runtime, &config))
-                {
-                    Ok(session) => {
-                        let endpoint = session.endpoint_url().to_string();
-                        session.disconnect(&self.runtime);
-                        json!({
-                            "success": true,
-                            "message": format!("OPC UA session activated on {endpoint}"),
-                        })
-                    }
-                    Err(error) => json!({ "success": false, "message": error }),
-                },
-            );
-        }
         if provider != "modbus-tcp" && provider != "modbus" {
             return Err(PluginError::new(
                 -32602,
@@ -662,46 +594,17 @@ impl Plugin {
         })
     }
 
-    fn connect(&self, params: &Value) -> Result<Value, PluginError> {
+    fn connect(&self, params: &Value, _emitter: &PluginEmitter) -> Result<Value, PluginError> {
         let connection = connection_object(params)?;
         let connection_id = connection_id(params)?;
         let provider = provider_of(connection);
 
         // Connect is idempotent: drop any session already held for this id.
         if let Some(previous) = self.drop_session(&connection_id) {
-            match previous.as_ref() {
-                Session::Modbus(session) => session.disconnect(),
-                Session::Opcua(session) => session.disconnect(&self.runtime),
-            }
+            let Session::Modbus(session) = previous.as_ref();
+            session.disconnect();
         }
 
-        if provider == "opcua" {
-            // The workbench must open and stay usable even when the endpoint is
-            // not reachable yet (a freshly typed IP, a powered-off server, or
-            // credentials that still need fixing). Opening the page is reported
-            // as `success: true`; the actual reachability lives in `connected`
-            // so the UI can show an offline state instead of a hard wall.
-            let outcome = opcua_config(connection, params, &self.data_dir)
-                .and_then(|config| OpcuaSession::connect(&self.runtime, &config));
-            return match outcome {
-                Ok(session) => {
-                    let endpoint = session.endpoint_url().to_string();
-                    self.store(connection_id, Session::Opcua(session), None)?;
-                    Ok(json!({
-                        "success": true,
-                        "connected": true,
-                        "message": format!("Connected to {endpoint}"),
-                    }))
-                }
-                Err(error) => Ok(json!({
-                    "success": true,
-                    "connected": false,
-                    "message": format!(
-                        "Endpoint not reachable yet: {error}. The workbench is open — fix the address or credentials in the connection and reconnect."
-                    ),
-                })),
-            };
-        }
 
         if provider == "modbus-tcp" || provider == "modbus" {
             // `modbus_session` only builds a struct and never fails, so the
@@ -743,10 +646,8 @@ impl Plugin {
         let connection_id = connection_id(params)?;
         match self.drop_session(&connection_id) {
             Some(session) => {
-                match session.as_ref() {
-                    Session::Modbus(session) => session.disconnect(),
-                    Session::Opcua(session) => session.disconnect(&self.runtime),
-                }
+                let Session::Modbus(session) = session.as_ref();
+                session.disconnect();
                 Ok(json!({ "success": true }))
             }
             // Disconnect must be idempotent.
@@ -757,12 +658,7 @@ impl Plugin {
     fn modbus_read(&self, params: &Value) -> Result<Value, PluginError> {
         let connection_id = target_connection_id(params)?;
         let session = self.lookup(&connection_id)?;
-        let Session::Modbus(session) = session.as_ref() else {
-            return Err(PluginError::new(
-                -32602,
-                format!("Connection {connection_id} is not a Modbus TCP connection"),
-            ));
-        };
+        let Session::Modbus(session) = session.as_ref();
 
         let tasks = params
             .get("tasks")
@@ -811,9 +707,8 @@ impl Plugin {
         // Re-opening replaces the previous session, so the device form can be
         // saved and reconnected without leaking a socket.
         if let Some(previous) = self.drop_session(&key) {
-            if let Session::Modbus(session) = previous.as_ref() {
-                session.disconnect();
-            }
+            let Session::Modbus(session) = previous.as_ref();
+            session.disconnect();
         }
 
         let session = ModbusSession::new(host.as_str(), port, Duration::from_millis(timeout_ms));
@@ -850,9 +745,8 @@ impl Plugin {
             .ok_or_else(|| PluginError::new(-32602, "Missing deviceId"))?;
         let closed = match self.drop_session(&device_key(&device_id)) {
             Some(session) => {
-                if let Session::Modbus(session) = session.as_ref() {
-                    session.disconnect();
-                }
+                let Session::Modbus(session) = session.as_ref();
+                session.disconnect();
                 true
             }
             None => false,
@@ -875,9 +769,8 @@ impl Plugin {
                 .map_err(|_| PluginError::new(-32000, "Session registry is poisoned"))?;
             for (key, session) in sessions.iter() {
                 let Some(device_id) = key.strip_prefix(DEVICE_PREFIX) else { continue };
-                if let Session::Modbus(session) = session.as_ref() {
-                    found.push((device_id.to_string(), session.endpoint()));
-                }
+                let Session::Modbus(session) = session.as_ref();
+                found.push((device_id.to_string(), session.endpoint()));
             }
         }
         let devices: Vec<Value> = found
@@ -900,12 +793,7 @@ impl Plugin {
     fn modbus_connection_info(&self, params: &Value) -> Result<Value, PluginError> {
         let connection_id = target_connection_id(params)?;
         let session = self.lookup(&connection_id)?;
-        let Session::Modbus(session) = session.as_ref() else {
-            return Err(PluginError::new(
-                -32602,
-                format!("Connection {connection_id} is not a Modbus TCP connection"),
-            ));
-        };
+        let Session::Modbus(session) = session.as_ref();
         let endpoint = session.endpoint();
         let (host, port) = split_endpoint(&endpoint);
         let (_, _, unit_id) = self.modbus_defaults_for(&connection_id);
@@ -920,12 +808,7 @@ impl Plugin {
     fn modbus_write(&self, params: &Value) -> Result<Value, PluginError> {
         let connection_id = target_connection_id(params)?;
         let session = self.lookup(&connection_id)?;
-        let Session::Modbus(session) = session.as_ref() else {
-            return Err(PluginError::new(
-                -32602,
-                format!("Connection {connection_id} is not a Modbus TCP connection"),
-            ));
-        };
+        let Session::Modbus(session) = session.as_ref();
 
         let writes = params
             .get("writes")
@@ -947,109 +830,7 @@ impl Plugin {
         Ok(json!({ "results": results }))
     }
 
-    fn opcua_session(&self, params: &Value) -> Result<(String, Arc<Session>), PluginError> {
-        let connection_id = target_connection_id(params)?;
-        let session = self.lookup(&connection_id)?;
-        if !matches!(session.as_ref(), Session::Opcua(_)) {
-            return Err(PluginError::new(
-                -32602,
-                format!("Connection {connection_id} is not an OPC UA connection"),
-            ));
-        }
-        Ok((connection_id, session))
-    }
 
-    fn opcua_browse(&self, params: &Value) -> Result<Value, PluginError> {
-        let (_, session) = self.opcua_session(params)?;
-        let Session::Opcua(session) = session.as_ref() else {
-            unreachable!("opcua_session already checked the variant")
-        };
-        let node_id = params.get("nodeId").and_then(Value::as_str).unwrap_or("i=84");
-        let direction = params
-            .get("direction")
-            .and_then(Value::as_str)
-            .unwrap_or("forward");
-        let max_references = params
-            .get("maxReferences")
-            .and_then(Value::as_u64)
-            .unwrap_or(500) as u32;
-        // Omit `referenceTypeId` for a hierarchy-only browse; pass `i=0` to see
-        // every reference, including HasTypeDefinition and HasSubtype.
-        let reference_type_id = params.get("referenceTypeId").and_then(Value::as_str);
-        let include_subtypes = params
-            .get("includeSubtypes")
-            .and_then(Value::as_bool)
-            .unwrap_or(true);
-        session
-            .browse(
-                &self.runtime,
-                node_id,
-                direction,
-                reference_type_id,
-                include_subtypes,
-                max_references,
-            )
-            .map_err(to_error)
-    }
-
-    fn opcua_read(&self, params: &Value) -> Result<Value, PluginError> {
-        let (_, session) = self.opcua_session(params)?;
-        let Session::Opcua(session) = session.as_ref() else {
-            unreachable!("opcua_session already checked the variant")
-        };
-        let node_ids = string_list(params, "nodeIds")?;
-        session.read(&self.runtime, &node_ids).map_err(to_error)
-    }
-
-    fn opcua_write(&self, params: &Value) -> Result<Value, PluginError> {
-        let (_, session) = self.opcua_session(params)?;
-        let Session::Opcua(session) = session.as_ref() else {
-            unreachable!("opcua_session already checked the variant")
-        };
-        let writes = params
-            .get("writes")
-            .and_then(Value::as_array)
-            .cloned()
-            .ok_or_else(|| PluginError::new(-32602, "Missing writes"))?;
-        if writes.is_empty() || writes.len() > 200 {
-            return Err(PluginError::new(-32602, "A write takes 1..=200 entries"));
-        }
-        session.write(&self.runtime, &writes).map_err(to_error)
-    }
-
-    fn opcua_subscribe(
-        &self,
-        params: &Value,
-        emitter: &PluginEmitter,
-    ) -> Result<Value, PluginError> {
-        let (connection_id, session) = self.opcua_session(params)?;
-        let Session::Opcua(session) = session.as_ref() else {
-            unreachable!("opcua_session already checked the variant")
-        };
-        let node_ids = string_list(params, "nodeIds")?;
-        let interval_ms = params
-            .get("intervalMs")
-            .and_then(Value::as_u64)
-            .unwrap_or(1000);
-        session
-            .subscribe(&self.runtime, &connection_id, &node_ids, interval_ms, emitter)
-            .map_err(to_error)
-    }
-
-    fn opcua_unsubscribe(&self, params: &Value) -> Result<Value, PluginError> {
-        let (_, session) = self.opcua_session(params)?;
-        let Session::Opcua(session) = session.as_ref() else {
-            unreachable!("opcua_session already checked the variant")
-        };
-        let subscription_id = params
-            .get("subscriptionId")
-            .and_then(Value::as_u64)
-            .ok_or_else(|| PluginError::new(-32602, "Missing subscriptionId"))?
-            as u32;
-        session
-            .unsubscribe(&self.runtime, subscription_id)
-            .map_err(to_error)
-    }
 
     /// Read-only tools offered to the DBX AI assistant.
     fn mcp_tools(&self) -> Value {
@@ -1099,44 +880,6 @@ impl Plugin {
                     },
                     "annotations": { "readOnlyHint": true, "title": "Read Modbus TCP values" }
                 },
-                {
-                    "name": "opcua_read",
-                    "description": "Read one or more OPC UA nodes from an open OPC UA connection and return their values, data types and status codes.",
-                    "inputSchema": {
-                        "type": "object",
-                        "properties": {
-                            "nodeIds": {
-                                "type": "array",
-                                "description": "OPC UA node ids such as ns=3;s=Temperature.",
-                                "items": { "type": "string" },
-                                "maxItems": 200
-                            }
-                        },
-                        "required": ["nodeIds"]
-                    },
-                    "annotations": { "readOnlyHint": true, "title": "Read OPC UA nodes" }
-                },
-                {
-                    "name": "opcua_browse",
-                    "description": "Browse the children of an OPC UA node to discover variables and objects. Defaults to the Objects folder.",
-                    "inputSchema": {
-                        "type": "object",
-                        "properties": {
-                            "nodeId": {
-                                "type": "string",
-                                "description": "Node id to browse. Defaults to i=85, the Objects folder."
-                            },
-                            "maxReferences": {
-                                "type": "integer",
-                                "description": "Maximum number of references to return.",
-                                "minimum": 1,
-                                "maximum": 2000
-                            }
-                        },
-                        "required": []
-                    },
-                    "annotations": { "readOnlyHint": true, "title": "Browse the OPC UA address space" }
-                }
             ]
         })
     }
@@ -1173,7 +916,6 @@ impl Plugin {
                 "No open plugin connection is bound to this tool call.",
             ));
         };
-        let scope = json!({ "connectionId": connection_id });
 
         // A failing tool has to reach the model as `isError`, not abort the whole
         // call. Wrapping the dispatch in a closure keeps `?` inside the tool body
@@ -1182,39 +924,9 @@ impl Plugin {
             match tool {
                 "modbus_read" => {
                     let session = self.lookup(&connection_id)?;
-                    let Session::Modbus(session) = session.as_ref() else {
-                        return Err(PluginError::new(
-                            -32602,
-                            "The bound connection is not a Modbus TCP connection.",
-                        ));
-                    };
+                    let Session::Modbus(session) = session.as_ref();
                     let defaults = self.modbus_defaults_for(&connection_id);
                     Ok(read_task(session, &arguments, &defaults))
-                }
-                "opcua_read" => {
-                    let (_, session) = self.opcua_session(&scope)?;
-                    let Session::Opcua(session) = session.as_ref() else {
-                        unreachable!("opcua_session already checked the variant")
-                    };
-                    let node_ids = string_list(&arguments, "nodeIds")?;
-                    session.read(&self.runtime, &node_ids).map_err(to_error)
-                }
-                "opcua_browse" => {
-                    let (_, session) = self.opcua_session(&scope)?;
-                    let Session::Opcua(session) = session.as_ref() else {
-                        unreachable!("opcua_session already checked the variant")
-                    };
-                    let node_id = arguments
-                        .get("nodeId")
-                        .and_then(Value::as_str)
-                        .unwrap_or("i=85");
-                    let max_references = arguments
-                        .get("maxReferences")
-                        .and_then(Value::as_u64)
-                        .unwrap_or(500) as u32;
-                    session
-                        .browse(&self.runtime, node_id, "forward", None, true, max_references)
-                        .map_err(to_error)
                 }
                 other => Err(PluginError::new(-32602, format!("Unknown tool {other}"))),
             }
@@ -1237,32 +949,6 @@ fn mcp_error(message: &str) -> Value {
     json!({ "content": [{ "type": "text", "text": message }], "isError": true })
 }
 
-fn string_list(params: &Value, key: &str) -> Result<Vec<String>, PluginError> {
-    let values = params
-        .get(key)
-        .and_then(Value::as_array)
-        .ok_or_else(|| PluginError::new(-32602, format!("Missing {key}")))?;
-    if values.is_empty() || values.len() > 500 {
-        return Err(PluginError::new(
-            -32602,
-            format!("{key} takes 1..=500 entries"),
-        ));
-    }
-    values
-        .iter()
-        .map(|value| {
-            value
-                .as_str()
-                .map(str::to_string)
-                .ok_or_else(|| PluginError::new(-32602, format!("{key} must contain strings")))
-        })
-        .collect()
-}
-
-fn to_error(message: String) -> PluginError {
-    PluginError::new(-32000, message)
-}
-
 fn main() -> std::io::Result<()> {
     let plugin = Plugin::new().unwrap_or_else(|error| {
         // stdout is reserved for protocol traffic, so failures go to stderr.
@@ -1271,8 +957,7 @@ fn main() -> std::io::Result<()> {
     });
     let metadata = PluginMetadata::new(PLUGIN_ID, PLUGIN_VERSION)
         .with_capability("connections")
-        .with_capability("modbus-tcp")
-        .with_capability("opcua");
+        .with_capability("modbus-tcp");
     PluginServer::new(metadata, plugin).serve()
 }
 
@@ -1306,15 +991,15 @@ mod tests {
     #[test]
     fn provider_falls_back_to_the_contribution_id_tail() {
         let connection = json!({
-            "plugin_connection_provider": "io.github.yuzhi.everlink.opcua",
+            "plugin_connection_provider": "io.github.yuzhi.everlink.modbus",
         });
-        assert_eq!(provider_of(&connection), "opcua");
+        assert_eq!(provider_of(&connection), "modbus");
     }
 
     #[test]
     fn provider_accepts_legacy_spellings() {
-        assert_eq!(provider_of(&json!({ "database_type": "opcua" })), "opcua");
-        assert_eq!(provider_of(&json!({ "databaseType": "modbus-tcp" })), "modbus-tcp");
+        assert_eq!(provider_of(&json!({ "database_type": "modbus-tcp" })), "modbus-tcp");
+        assert_eq!(provider_of(&json!({ "databaseType": "modbus" })), "modbus");
         assert_eq!(provider_of(&json!({ "dbType": "modbus" })), "modbus");
         // Nothing recognisable must stay empty so the caller reports it.
         assert_eq!(provider_of(&json!({ "db_type": "plugin" })), "");
@@ -1324,13 +1009,13 @@ mod tests {
     fn secrets_and_config_are_both_visible() {
         let connection = json!({
             "host": "10.0.0.5",
-            "external_config": { "security_policy": "Basic256Sha256" },
+            "external_config": { "byte_order": "BADC" },
             "connection_secrets": { "password": "s3cret" },
         });
         assert_eq!(text_field(&connection, "host").as_deref(), Some("10.0.0.5"));
         assert_eq!(
-            text_field(&connection, "security_policy").as_deref(),
-            Some("Basic256Sha256")
+            text_field(&connection, "byte_order").as_deref(),
+            Some("BADC")
         );
         assert_eq!(text_field(&connection, "password").as_deref(), Some("s3cret"));
     }

@@ -1,7 +1,7 @@
 # EverLink
 
-A DBX plugin that reads and writes **Modbus TCP** and **OPC UA** data from industrial
-devices: PLCs, gateways, remote IO couplers and OPC UA servers.
+A DBX plugin that reads and writes **Modbus TCP** data from industrial
+devices: PLCs, gateways and remote IO couplers.
 
 Built from the official `dbx-plugin create` **Rust + frontend** template.
 
@@ -13,17 +13,15 @@ Built from the official `dbx-plugin create` **Rust + frontend** template.
 | Contribution | Type | Purpose |
 | --- | --- | --- |
 | `io.github.yuzhi.everlink.modbus` | connection-provider | Modbus TCP connection form |
-| `io.github.yuzhi.everlink.opcua` | connection-provider | OPC UA connection form |
 | `io.github.yuzhi.everlink.modbus.workbench` | workbench | Register table with polling and guarded writes |
-| `io.github.yuzhi.everlink.opcua.workbench` | workbench | Address space browser, reads and subscriptions |
 | `io.github.yuzhi.everlink.mcp` | mcp | Read-only tools for the DBX AI assistant |
 
-Both workbenches are served by the same `ui/index.html`; the page routes on
+The workbench is served by `ui/index.html`; the page routes on
 `dbxPlugin.contributionId`.
 
 ## Interface
 
-Both workbenches follow the same shape: **configuration on the left, values on
+The workbench follows the same shape: **configuration on the left, values on
 the right.** Nothing that describes *what* to read sits in front of what you are
 reading, so the table is never competing with form fields for space.
 
@@ -81,22 +79,7 @@ imposing a look of its own. Nothing is hard-coded to a white background.
 - The divider between the sidebar and the grid is draggable, and adjustable with
   the arrow keys.
 
-**OPC UA**
-
-- Left sidebar: the **address space** tree, with a namespace picker and rebrowse.
-  The tree prefixes each node with a colour-coded class glyph (`O` object,
-  `V` variable, `M` method, `W` view, `T` type) standing in for an icon set.
-  Clicking expands a node; double-clicking adds it to the watch list.
-- The **namespace picker highlights** one namespace at a time — matching nodes go
-  bold and the rest dim, rather than filtering rows out, so the tree shape stays
-  stable.
-- Right side: the **watch list** — node id, value, data type, timestamp and
-  quality. Clicking a value opens the write dialog; a node that is not `Good` is
-  flagged.
-- The **attributes** panel sits beneath the watch list and describes the node
-  selected in the tree.
-
-Both workbenches report connection state in the header and never write to the
+The workbench reports connection state in the header and never writes to the
 device without a confirmation dialog that names the exact target and value.
 
 ## Modbus TCP
@@ -125,68 +108,17 @@ The TCP socket is reused across reads and reconnected once automatically when a 
 silently drops an idle connection. Modbus exception responses are reported by name
 (for example `Modbus exception 2 (illegal data address)`).
 
-## OPC UA
-
-Implemented in `backend/src/opcua_client.rs` on top of
-[`async-opcua`](https://crates.io/crates/async-opcua) 0.19. Only the `client` feature is
-enabled, and that fork's crypto backend is pure Rust (`rsa`, `sha2`, `aes`), so the
-sidecar cross-compiles without OpenSSL, CMake, Perl or NASM.
-
-- Security policies: `None`, `Basic128Rsa15`, `Basic256Sha256`
-- Message security modes: `None`, `Sign`, `SignAndEncrypt`
-- Identity: anonymous or user name / password (password goes to the DBX Secret Store)
-- Browse the address space with continuation points, read, write, and subscribe
-- Subscriptions stream `opcua/dataChange` events into the workbench
-
-A `security_policy` of `None` forces `MessageSecurityMode::None`, because OPC UA forbids
-transport security under that policy. The reverse combination — a real security policy
-with security mode `None` — is rejected instead of being silently downgraded.
-
-Client certificates and the trust store live in `DBX_PLUGIN_DATA_DIR/pki`, which DBX
-preserves across plugin upgrades. Server certificates are trusted on first use
-(`trust_server_certs(true)`), which is the only practical default for field devices
-that ship self-signed certificates.
-
-### Node ids
-
-`opcua/read`, `opcua/write` and `opcua/subscribe` take node ids in the usual
-`ns=<index>;<i|s|g|b>=<value>` form, for example `ns=2;i=5`. A leading `svr=<index>;`
-segment — as printed by many OPC UA tools — is accepted and ignored, because a server
-index only means something to a multi-server client.
-
-Browse results are reduced to that same form before they reach the host. The wire
-format for references is an `ExpandedNodeId`, whose text form carries `svr=`/`nsu=`
-prefixes that `NodeId` cannot parse back; emitting the raw form would make every node
-discovered through the address-space tree fail with `BadNodeIdInvalid` on the first read.
-
-### Browsing
-
-`opcua/browse` walks `HierarchicalReferences` by default, so the tree shows children
-rather than a node's type. Optional parameters:
-
-| Parameter | Default | Meaning |
-| --- | --- | --- |
-| `nodeId` | `i=84` (Objects) | Node to browse |
-| `direction` | `forward` | `forward`, `inverse` or `both` |
-| `referenceTypeId` | hierarchical references | Pass `i=0` for every reference, including `HasTypeDefinition` |
-| `includeSubtypes` | `true` | Include subtypes of the chosen reference type |
-| `maxReferences` | `500` | Page size, clamped to 2000 |
-
-Continuation points are followed automatically, with a loop guard: `async-opcua` does not
-clear `continuation_point` when a page is exhausted, so the walk also stops as soon as a
-page adds no new references.
-
 ## Connection lifecycle
 
 `connection/test`, `connection/connect` and `connection/disconnect` report their outcome
 in the result payload as `{ "success": true|false, "message": "..." }` rather than as a
-JSON-RPC error, for both connection types. A rejected password, an unreachable device or
+JSON-RPC error, for both connection types. An unreachable device or
 a timeout is something the connection form has to display, not a plugin fault. The
 message carries the underlying reason, for example
-`OPC UA session on opc.tcp://plc:4840 ended: BadUserAccessDenied`.
+`Modbus TCP unreachable on 192.168.1.10:502: connection refused`.
 
 Only a missing `connection` payload, an unknown connection type or an unknown method is
-returned as a JSON-RPC error. Calls made *after* `connect` (`modbus/read`, `opcua/read`,
+returned as a JSON-RPC error. Calls made *after* `connect` (`modbus/read`,
 …) reference a session by a bare `connectionId`, so they use a different id resolver than
 the lifecycle calls, which carry the full connection snapshot.
 
@@ -198,7 +130,7 @@ DBX serialises a saved connection across three buckets, and the field bindings i
 | Bucket | Bindings | Example fields |
 | --- | --- | --- |
 | top level | `name`, `host`, `port`, `username`, `password`, `database` | `host`, `port` |
-| `external_config` | `config` | `unit_id`, `byte_order`, `security_policy` |
+| `external_config` | `config` | `unit_id`, `byte_order` |
 | `connection_secrets` | `secret` (the default for `password` fields) | `password` |
 
 The provider type is **not** in `database_type` — that key is hard-coded to `"plugin"` for
@@ -210,18 +142,12 @@ silently turn into `Unsupported connection type ""`.
 
 Because secrets sit in their own bucket, field lookups consult the top level, then
 `external_config`, then `connection_secrets`. Reading only the top level would silently
-downgrade an authenticated OPC UA connection to anonymous access.
-
-Closing an OPC UA session waits for at most five seconds. The client's
-`Session::disconnect` round-trips a `CloseSession` request through the session's event
-loop and then waits for that loop to observe the disconnection, so the loop has to stay
-alive during the close and a loop that has already given up has to be abandoned rather
-than awaited.
+drop the password, because secrets are never echoed back as plain config.
 
 ## AI tools
 
-The sidecar implements `mcp/tools` and `mcp/call` with three read-only tools:
-`modbus_read`, `opcua_read` and `opcua_browse`. Enable them per plugin under
+The sidecar implements `mcp/tools` and `mcp/call` with one read-only tool:
+`modbus_read`. Enable it per plugin under
 **Plugin Center → Installed → Built-in AI tools**; installing the plugin alone exposes
 nothing.
 
@@ -253,8 +179,46 @@ The command builds the native backend for the current host, stages `manifest.jso
 `assets/` and `ui/`, then writes an unsigned target-specific `.dbxp` candidate plus a
 matching `.artifact.json` into `dist/`.
 
-> The sidecar binary is target-specific, so OPC UA and Modbus plugins ship one package
-> per OS and CPU architecture rather than a single `universal` package.
+> The sidecar binary is target-specific, so the plugin ships one package
+> per OS and CPU architecture rather than a single `universal` package. A local
+> build therefore only ever produces **one** target — the one you are running.
+> See [Multi-platform builds](#multi-platform-builds).
+
+## Multi-platform builds
+
+The Rust sidecar is a native binary, so every OS and CPU architecture needs its own
+build. `dbx-plugin package` compiles the backend **on the host it runs on**; it does
+not cross-compile, and `--target` / `DBX_PLUGIN_TARGET` only label the artifact. A
+build on Windows can never emit `linux-x64`, whichever target is passed.
+
+Multi-platform coverage therefore comes from building once per platform, which the two
+workflows in `.github/workflows/` do with a runner/target matrix:
+
+| Target | Runner | Notes |
+| --- | --- | --- |
+| `linux-x64` | `ubuntu-24.04` | |
+| `linux-arm64` | `ubuntu-24.04-arm` | ARM runners need a plan that allows them |
+| `windows-x64` | `windows-2022` | |
+| `darwin-x64` | `macos-15-intel` | Intel macOS runners are being retired upstream |
+| `darwin-arm64` | `macos-15` | Apple silicon |
+
+- **`.github/workflows/plugin-build.yml`** builds every target on pushes to `main`, on
+  pull requests and on demand, uploading one `.dbxp` plus its `.artifact.json` per
+  target as workflow artifacts. It doubles as the portability gate: a platform-specific
+  compile error surfaces here instead of at release time.
+- **`.github/workflows/plugin-release.yml`** runs the same matrix when a GitHub Release
+  is published, and attaches every target plus the merged `release-candidates.json` to
+  that release.
+
+If a runner is unavailable to your account, delete just that matrix entry — the
+remaining targets still build and the plugin installs on the targets you shipped. To
+add Windows on ARM, add `{"runner":"windows-11-arm","target":"windows-arm64"}` to both
+matrices.
+
+The backend itself is platform-neutral: `backend/src` uses only `std::net`, `std::sync`,
+`std::time` and `serde_json`, with no `#[cfg(...)]` branches and no Windows-only APIs,
+and `dbx-plugin.toml` declares `binary = "dbx-plugin-everlink"` without an extension so
+the packager appends `.exe` on Windows.
 
 ## Acceptance checklist
 
