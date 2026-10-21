@@ -1,4 +1,4 @@
-# EverLink
+# Modbus TCP
 
 A DBX plugin that reads and writes **Modbus TCP** data from industrial
 devices: PLCs, gateways and remote IO couplers.
@@ -12,9 +12,9 @@ Built from the official `dbx-plugin create` **Rust + frontend** template.
 
 | Contribution | Type | Purpose |
 | --- | --- | --- |
-| `io.github.yuzhi.everlink.modbus` | connection-provider | Modbus TCP connection form |
-| `io.github.yuzhi.everlink.modbus.workbench` | workbench | Register table with polling and guarded writes |
-| `io.github.yuzhi.everlink.mcp` | mcp | Read-only tools for the DBX AI assistant |
+| `io.github.yuzhi.modbus.modbus` | connection-provider | Modbus TCP connection form |
+| `io.github.yuzhi.modbus.modbus.workbench` | workbench | Register table with polling and guarded writes |
+| `io.github.yuzhi.modbus.mcp` | mcp | Read-only tools for the DBX AI assistant |
 
 The workbench is served by `ui/index.html`; the page routes on
 `dbxPlugin.contributionId`.
@@ -217,7 +217,7 @@ matrices.
 
 The backend itself is platform-neutral: `backend/src` uses only `std::net`, `std::sync`,
 `std::time` and `serde_json`, with no `#[cfg(...)]` branches and no Windows-only APIs,
-and `dbx-plugin.toml` declares `binary = "dbx-plugin-everlink"` without an extension so
+and `dbx-plugin.toml` declares `binary = "dbx-plugin-modbus"` without an extension so
 the packager appends `.exe` on Windows.
 
 ## Acceptance checklist

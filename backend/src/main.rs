@@ -18,7 +18,7 @@ use serde_json::{json, Value};
 
 use modbus::{area_function_codes, decode_registers, encode_value, register_count, ModbusSession};
 
-const PLUGIN_ID: &str = "io.github.yuzhi.everlink";
+const PLUGIN_ID: &str = "io.github.yuzhi.modbus";
 const PLUGIN_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Maximum number of read tasks accepted in a single `modbus/read` call.
@@ -975,8 +975,8 @@ mod tests {
         let connection = json!({
             "id": "abc",
             "db_type": "plugin",
-            "plugin_id": "io.github.yuzhi.everlink",
-            "plugin_connection_provider": "io.github.yuzhi.everlink.modbus",
+            "plugin_id": "io.github.yuzhi.modbus",
+            "plugin_connection_provider": "io.github.yuzhi.modbus.modbus",
             "plugin_connection_type": "modbus-tcp",
             "host": "127.0.0.1",
             "port": 502,
@@ -991,7 +991,7 @@ mod tests {
     #[test]
     fn provider_falls_back_to_the_contribution_id_tail() {
         let connection = json!({
-            "plugin_connection_provider": "io.github.yuzhi.everlink.modbus",
+            "plugin_connection_provider": "io.github.yuzhi.modbus.modbus",
         });
         assert_eq!(provider_of(&connection), "modbus");
     }
