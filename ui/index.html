@@ -119,6 +119,15 @@
       button.ghost:hover:not(:disabled) { background: var(--dbx-muted); }
       button.icon { width: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
       button.danger { color: var(--dbx-destructive); }
+      /* A confirmation whose outcome cannot be undone: the button itself has to
+         read as destructive, not as the primary action of the dialog. */
+      button.destructive {
+        background: var(--dbx-destructive); color: #fff;
+        border-color: transparent; font-weight: 500;
+      }
+      button.destructive:hover:not(:disabled) {
+        background: var(--dbx-destructive); filter: brightness(.94);
+      }
       button[aria-pressed="true"] {
         background: var(--dbx-muted);
         border-color: var(--dbx-primary);
@@ -597,13 +606,11 @@
           value: "Value", raw: "Raw value", state: "State", format: "Display",
           emptyGrid: "No registers to show yet.",
           emptyTable: "Press Read to load this range.",
-          confirmWriteBody: "This sends a write request to the device. Check the target and the value before continuing.",
-          cancel: "Cancel", confirm: "Write now",
+          cancel: "Cancel", confirm: "Confirm",
           standalone: "standalone",
           standaloneHint: "This workbench configures and opens its own device sessions; no saved connection is needed.",
           tx: "Tx", err: "Err",
-          writeTitleRegister: "Write register", writeTitleCoil: "Write coil",
-          writeHint: "Double-click a value to write it. Read-only areas are not editable.",
+          writeHint: "Double-click a value to write it: Enter sends, Esc cancels. Discrete inputs and input registers are read-only.",
           start: "Start address", scope: "Range", config: "Configuration",
           scopes: "Configurations", addScope: "New configuration", removeScope: "Delete",
           wordBig: "High first", wordLittle: "Low first",
@@ -627,8 +634,11 @@
           noDevices: "No devices yet.", noDevice: "No device",
           untitledDevice: "New device",
           deviceInUse: "This device is still used by ranges",
+          deleteTitle: "Delete {name}?",
+          deleteBody: "The address, slave id and timeout are removed from this workbench. Nothing is written to the device — Modbus has no delete.",
+          deleteConfirm: "Delete device",
           onboardTitle: "Connect a device",
-          onboardBody: "Type the address of the Modbus TCP server in the device form on the left, then press Connect. The address is remembered for next time.",
+          onboardBody: "A Modbus workspace starts empty. Enter the host and port of your Modbus TCP server in the device form on the left, then press Connect — the address is remembered for next time.",
           onboardAction: "Set up a device",
           emptyList: "Nothing here yet.",
           // Read log
@@ -647,13 +657,11 @@
           value: "值", raw: "原始值", state: "状态", format: "显示格式",
           emptyGrid: "暂无可显示的寄存器。",
           emptyTable: "点击「读取」加载该范围。",
-          confirmWriteBody: "这会对设备发起写操作，请核对目标地址与数值。",
-          cancel: "取消", confirm: "确认写入",
+          cancel: "取消", confirm: "确认",
           standalone: "独立运行",
           standaloneHint: "该工作台自行配置并打开设备会话，无需从已保存的连接打开。",
           tx: "发送", err: "错误",
-          writeTitleRegister: "写入寄存器", writeTitleCoil: "写入线圈",
-          writeHint: "双击数值即可写入；只读区域不可编辑。",
+          writeHint: "双击数值即可直接改写：回车发送，Esc 取消；离散输入与输入寄存器为只读。",
           start: "起始地址", scope: "范围", config: "配置",
           scopes: "配置", addScope: "新建配置", removeScope: "删除",
           wordBig: "高字在前", wordLittle: "低字在前",
@@ -676,9 +684,12 @@
           noDevices: "还没有设备。", noDevice: "无设备",
           untitledDevice: "新设备",
           onboardTitle: "连接设备",
-          onboardBody: "在左侧设备表单里填写 Modbus TCP 服务器地址，然后点击「连接」。地址会被记住，下次打开即可用。",
+          onboardBody: "新建的 Modbus 工作区是空的。在左侧设备表单里填写服务器的主机地址与端口，然后点击「连接」；地址会被记住，下次打开即可用。",
           onboardAction: "去配置设备",
           deviceInUse: "该设备仍被配置引用",
+          deleteTitle: "删除「{name}」？",
+          deleteBody: "主机地址、从站号和超时会从当前工作台移除。不会对设备下发任何指令——Modbus 没有删除操作。",
+          deleteConfirm: "删除设备",
           emptyList: "暂无内容。",
           logButton: "日志", logTitle: "读取日志", logEmpty: "还没有读取记录。",
           logClear: "清空", logClose: "关闭日志", logCount: "条",
@@ -725,8 +736,11 @@
           else if (options.fieldNode) dialog.appendChild(el("div", { class: "row" }, [options.fieldNode]));
           dialog.appendChild(el("div", { class: "actions" }, [
             el("button", { text: t.cancel, onclick: () => { dialog.close(); resolve(null); } }),
-            el("button", { class: "primary", text: options.confirmLabel || t.confirm,
-              onclick: () => { dialog.close(); resolve(options.field ? options.field.value : true); } })
+            el("button", {
+              class: options.destructive ? "destructive" : "primary",
+              text: options.confirmLabel || t.confirm,
+              onclick: () => { dialog.close(); resolve(options.field ? options.field.value : true); }
+            })
           ]));
           dialog.addEventListener("close", () => dialog.remove());
           document.body.appendChild(dialog);
@@ -1419,12 +1433,21 @@
           openDevice(device);
         }
 
-        function removeDevice(device) {
+        async function removeDevice(device) {
           const used = state.scopes.filter((scope) => scope.deviceId === device.id);
           if (used.length) {
             toast(`${t.deviceInUse}: ${used.length}`, "error");
             return;
           }
+          // Removing the entry throws away the address, the slave id and the
+          // timeout, and Modbus gives no way to read them back from the device.
+          const confirmed = await confirmDialog({
+            title: t.deleteTitle.replace("{name}", deviceLabel(device)),
+            body: t.deleteBody,
+            confirmLabel: t.deleteConfirm,
+            destructive: true
+          });
+          if (!confirmed) return;
           closeDevice(device);
           state.devices = state.devices.filter((entry) => entry !== device);
           // Keep the focus on whatever the active range still belongs to, so the
@@ -2230,6 +2253,11 @@
             const cell = el("div", { class: "av" });
             cell.appendChild(el("span", { class: "a", text: formatAddress(address) }));
 
+            // The cache record is what the inline editor and `refreshCell` work
+            // on, so it has to exist before the double-click handler is bound —
+            // handing them the DOM node instead makes every write a no-op
+            // (the node has no `holder`, so the editor threw before it opened).
+            let record;
             if (bit) {
               const bitState = el("span", { class: "bit" });
               bitState.appendChild(el("i"));
@@ -2239,30 +2267,31 @@
               cell.appendChild(holder);
               const rawCell = el("span", { class: "r" });
               cell.appendChild(rawCell);
+              record = { cell, holder, bit: bitState, rawCell, address };
 
               if (scope.area === "coil") {
                 holder.title = `${formatAddress(address)} · ${t.writeHint}`;
-                holder.addEventListener("dblclick", () => beginInlineEdit(scope, address, cell));
+                holder.addEventListener("dblclick", () => beginInlineEdit(scope, record));
               } else {
                 holder.classList.add("readonly");
                 holder.title = `${formatAddress(address)} · ${t.readOnlyArea}`;
               }
-              cache.cells.push({ cell, holder, bit: bitState, rawCell, address });
             } else {
               const holder = el("span", { class: "cell-value v" });
               cell.appendChild(holder);
               const rawCell = el("span", { class: "r" });
               cell.appendChild(rawCell);
+              record = { cell, holder, rawCell, address };
 
               if (scope.area === "holding") {
                 holder.title = `${formatAddress(address)} · ${scope.dataType} · ${t.writeHint}`;
-                holder.addEventListener("dblclick", () => beginInlineEdit(scope, address, cell));
+                holder.addEventListener("dblclick", () => beginInlineEdit(scope, record));
               } else {
                 holder.classList.add("readonly");
                 holder.title = `${formatAddress(address)} · ${t.readOnlyArea}`;
               }
-              cache.cells.push({ cell, holder, rawCell, address });
             }
+            cache.cells.push(record);
             gridEl.appendChild(cell);
           }
           updateCells(scope, first);
@@ -2380,12 +2409,15 @@
         // Inline editing: double-click a writable cell to turn its value into an
         // input in place. Enter commits the write, Esc or an empty field cancels,
         // and the input is replaced by the live value the moment it loses focus.
+        // Leaving the value untouched never reaches the device, so an accidental
+        // double-click costs nothing.
         let editingCell = null;
 
-        function beginInlineEdit(scope, address, cell) {
+        function beginInlineEdit(scope, cell) {
           if (editingCell) return;
           const device = deviceOf(scope);
           if (!device) return;
+          const address = cell.address;
           const bit = isBitArea(scope.area);
           const rc = bit ? 1 : registerCount(scope.dataType);
           const valueIndex = Math.round((address - scope.start) / rc);
@@ -2398,15 +2430,18 @@
           })() : undefined;
 
           const holder = cell.holder;
+          const initial = bit
+            ? (existing ? "true" : "false")
+            : (existing === undefined ? "" : formatValue(existing));
           const input = el("input", {
             class: "cell-edit", type: "text",
-            value: bit ? (existing ? "true" : "false") : (existing === undefined ? "" : formatValue(existing)),
+            value: initial,
             placeholder: bit ? "true / false" : scope.dataType
           });
           if (bit) { cell.bit.style.display = "none"; holder.appendChild(input); }
           else { holder.textContent = ""; holder.appendChild(input); }
           holder.classList.add("editing");
-          editingCell = { scope, address, holder, cell, input, bit, valueIndex };
+          editingCell = { scope, cell, holder, input, bit, valueIndex };
           input.focus();
           input.select();
 
@@ -2415,12 +2450,17 @@
             if (settled) return;
             settled = true;
             const raw = input.value;
+            const unchanged = String(raw).trim() === String(initial).trim();
             holder.classList.remove("editing");
             if (bit) { cell.bit.style.display = ""; input.remove(); }
             else { holder.textContent = ""; }
             editingCell = null;
-            if (!commit || String(raw).trim() === "") { refreshCell(scope, cell, valueIndex); return; }
-            commitInlineWrite(scope, address, raw, cell, valueIndex);
+            // Nothing was typed: restore the cell from the last read result.
+            if (!commit || String(raw).trim() === "" || unchanged) {
+              refreshCell(scope, cell, valueIndex);
+              return;
+            }
+            commitInlineWrite(scope, cell, raw);
           };
           input.addEventListener("keydown", (event) => {
             if (event.key === "Enter") { event.preventDefault(); finish(true); }
@@ -2430,10 +2470,12 @@
           input.addEventListener("blur", () => finish(true));
         }
 
-        async function commitInlineWrite(scope, address, raw, cell, valueIndex) {
+        async function commitInlineWrite(scope, cell, raw) {
           const device = deviceOf(scope);
-          if (!device) { refreshCell(scope, cell, valueIndex); return; }
+          if (!device) { refreshCell(scope, cell, cell.valueIndex); return; }
+          const address = cell.address;
           const bit = isBitArea(scope.area);
+          const valueIndex = Math.round((address - scope.start) / (bit ? 1 : registerCount(scope.dataType)));
           try {
             const entry = { area: scope.area, address, unitId: Number(device.unitId) || 0 };
             if (bit) {
@@ -2456,6 +2498,7 @@
             }, 20000);
             const result = (response.results || [])[0];
             state.tx += 1;
+            updateCounters();
             if (result && result.ok) {
               toast(`${formatAddress(address)} ← ${raw}`, "info");
               readActive();

@@ -32,9 +32,12 @@ imposing a look of its own. Nothing is hard-coded to a white background.
 
 **Modbus TCP**
 
-- **The connection form asks for four things only** — host, port, slave id and
-  request timeout. Byte order and word order are not properties of the cable;
-  they belong to how you are reading the data, so they live in the workbench.
+- **Creating a connection asks for a workspace name and nothing else.** No host,
+  no port, no slave id: a Modbus workspace is just a container, and every address
+  is a device you add inside it. That keeps the host's connection dialog from
+  asking for values you have not looked up yet, and a connection that carries no
+  address says so instead of dialling a placeholder. Byte order and word order
+  likewise belong to how you read the data, so they live in the workbench too.
 - **The sidebar has two tabs. `Devices` manages the endpoints; `Ranges` manages
   what is read from them.**
 - **Devices.** Each device is an IP, port, slave id and timeout with its own
@@ -72,8 +75,11 @@ imposing a look of its own. Nothing is hard-coded to a white background.
   line. A failed read records the exact reason — a Modbus exception code, a
   timeout, a refused connection — and the same reason is shown above the grid, so
   it is visible whether or not the log is open.
-- **Double-click a value to write it.** Read-only areas (input registers,
-  discrete inputs) are not clickable, matching the backend rule.
+- **Double-click a value to write it.** The cell becomes an input in place:
+  `Enter` sends, `Esc` cancels, and leaving the field untouched writes nothing,
+  so an accidental double-click is harmless. Coil cells take `true`/`false`.
+  Read-only areas (input registers, discrete inputs) are not editable, matching
+  the backend rule.
 - **Byte order and word order affect the decoded value only.** The raw word in
   each cell always shows the 16-bit register that came off the wire; changing
   either option re-decodes the value and re-renders the grid without another
@@ -84,8 +90,10 @@ imposing a look of its own. Nothing is hard-coded to a white background.
 - The divider between the sidebar and the grid is draggable, and adjustable with
   the arrow keys.
 
-The workbench reports connection state in the header and never writes to the
-device without a confirmation dialog that names the exact target and value.
+The workbench reports connection state in the header. A write is always the
+result of an explicit edit of one cell and is confirmed by the toast that names
+the address and the value that was sent; a rejected write reports the backend's
+reason and restores the cell instead of leaving the typed value on screen.
 
 ## Modbus TCP
 

@@ -1,14 +1,14 @@
 ## Plugin submission
 
 - Plugin ID: `io.github.bobocha214.modbus`
-- Version: `0.1.0`
+- Version: `0.2.0`
 - Publisher ID: `bobocha214`
 
 ## Source repository and tag
 
 https://github.com/bobocha214/dbx-plugin-modbus
 
-Built from the immutable tag `v0.1.0`. The candidates are the unsigned
+Built from the immutable tag `v0.2.0`. The candidates are the unsigned
 `.dbxp` assets attached to that release.
 
 ## Capabilities and user workflow

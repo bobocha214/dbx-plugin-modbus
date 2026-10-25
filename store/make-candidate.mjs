@@ -8,7 +8,7 @@
 //
 //   node store/make-candidate.mjs \
 //     --repo bobocha214/dbx-plugin-modbus \
-//     --tag v0.1.0 \
+//     --tag v0.2.0 \
 //     --release-candidates ./release-candidates.json \
 //     --metadata ./.dbx-store.json \
 //     --output ./store/candidates/io.github.bobocha214.modbus.json

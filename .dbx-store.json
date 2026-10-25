@@ -1,6 +1,6 @@
 {
   "name": "Modbus TCP",
-  "description": "Read and write Modbus TCP registers on PLCs, gateways and remote IO couplers. Devices are configured and connected right in the workbench, with polling and guarded writes.",
+  "description": "Read and write Modbus TCP registers on PLCs, gateways and remote IO couplers. Devices are configured and connected right in the workbench, with polling and inline writes.",
   "icon": "assets/plugin.svg",
   "tags": [
     "modbus",
@@ -20,7 +20,7 @@
   "localizations": {
     "zh-CN": {
       "name": "Modbus TCP",
-      "description": "读写 PLC、网关和远程 IO 上的 Modbus TCP 寄存器，支持周期轮询与带二次确认的写入。"
+      "description": "读写 PLC、网关和远程 IO 上的 Modbus TCP 寄存器，支持周期轮询与双击直接写入。"
     }
   }
 }

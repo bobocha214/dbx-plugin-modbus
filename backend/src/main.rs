@@ -30,7 +30,14 @@ const MAX_WRITE_TASKS: usize = 32;
 /// DBX runs them without a per-call confirmation prompt.
 const MCP_READ_TOOLS: [&str; 1] = ["modbus_read"];
 
-/// Per-connection Modbus defaults taken from the connection form.
+/// Told to the host when a connection-level action needs an address that the
+/// connection does not carry. Creating a workspace asks for a name only — the
+/// host, port and slave id belong to the devices configured in the workbench.
+const NO_HOST_MESSAGE: &str = "This Modbus workspace has no address of its own. Open the Modbus workbench, add a device with its host and port, and connect it there.";
+
+/// Byte order, word order and unit id captured when a session opened. The
+/// connection form no longer collects them, so these fall back to the classic
+/// defaults and the workbench names them explicitly on every read and write.
 type ModbusDefaults = (String, String, u8);
 
 /// Device sessions are opened by the workbench itself, one per device in its
@@ -263,14 +270,29 @@ fn runtime_endpoint(params: &Value) -> (Option<String>, Option<u16>) {
     (host, port)
 }
 
-fn modbus_session(connection: &Value, params: &Value) -> Result<ModbusSession, String> {
+/// Address a host-side connection resolves to, if it has one.
+///
+/// The connection form no longer asks for a host: a workspace is created empty
+/// and the devices inside it own the addresses. So "no host" is a normal state
+/// rather than a typo, and both `test` and `connect` have to say so instead of
+/// dialling a placeholder address.
+fn connection_host(connection: &Value, params: &Value) -> Option<(String, u16)> {
     let (runtime_host, runtime_port) = runtime_endpoint(params);
     let host = runtime_host
         .or_else(|| text_field(connection, "host"))
-        .unwrap_or_else(|| "127.0.0.1".to_string());
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())?;
     let port = runtime_port
         .or_else(|| number_field(connection, "port").map(|value| value as u16))
+        // A connection saved without a port field serialises as 0.
+        .filter(|value| *value > 0)
         .unwrap_or(502);
+    Some((host, port))
+}
+
+fn modbus_session(connection: &Value, params: &Value) -> Result<ModbusSession, String> {
+    let (host, port) = connection_host(connection, params)
+        .ok_or_else(|| NO_HOST_MESSAGE.to_string())?;
     let timeout_ms = number_field(connection, "timeout_ms")
         .unwrap_or(3000)
         .clamp(200, 120_000);
@@ -607,11 +629,13 @@ impl Plugin {
 
 
         if provider == "modbus-tcp" || provider == "modbus" {
-            // `modbus_session` only builds a struct and never fails, so the
-            // workbench can always be reached. The store is lazy: the socket is
-            // opened on the first read, which reconnects transparently once the
-            // device is actually there. Reachability is reported in `connected`
-            // rather than blocking the page when the IP is not answering.
+            // A workspace with no address of its own is the normal case now: the
+            // devices inside the workbench own the addresses, so opening it is
+            // not an error and the message says where the address belongs. With
+            // an address, the store is lazy: the socket is opened on the first
+            // read, which reconnects transparently once the device is actually
+            // there. Reachability is reported in `connected` rather than
+            // blocking the page when the IP is not answering.
             let session = match modbus_session(connection, params) {
                 Ok(session) => session,
                 Err(error) => return Ok(json!({ "success": true, "connected": false, "message": error })),
@@ -1020,10 +1044,10 @@ mod tests {
         assert_eq!(text_field(&connection, "password").as_deref(), Some("s3cret"));
     }
 
-    /// The connection form now collects only host, port, slave id and timeout;
-    /// byte and word order are chosen in the workbench. A snapshot carrying just
-    /// those four must still yield a usable session with the classic defaults,
-    /// because the workbench sends the display options with each read instead.
+    /// The connection form asks for a workspace name only; addresses, slave ids
+    /// and display options are chosen per device in the workbench. A snapshot
+    /// carrying just those fields must still yield usable defaults, because the
+    /// workbench sends the display options with each read instead.
     #[test]
     fn a_minimal_connection_falls_back_to_classic_defaults() {
         let connection = json!({
@@ -1087,6 +1111,38 @@ mod tests {
         // producing a device the user cannot fix from the form.
         assert_eq!(split_endpoint("host:not-a-port"), ("host".to_string(), 502));
         assert_eq!(split_endpoint("bare-host"), ("bare-host".to_string(), 502));
+    }
+
+    /// A saved connection no longer carries an address, so a connection-level
+    /// connect must not dial a placeholder: it has to report that the address
+    /// lives on the devices inside the workbench instead.
+    #[test]
+    fn a_hostless_connection_has_no_endpoint() {
+        let hostless = json!({
+            "id": "abc",
+            "db_type": "plugin",
+            "plugin_connection_type": "modbus-tcp",
+            "host": "",
+            "port": 0,
+            "external_config": {},
+        });
+        assert_eq!(connection_host(&hostless, &json!({})), None);
+        // Not `unwrap_err`: the Ok side is a socket session, which is not Debug.
+        assert!(matches!(
+            modbus_session(&hostless, &json!({})),
+            Err(message) if message == NO_HOST_MESSAGE
+        ));
+
+        // The host's own runtime endpoint still wins when it resolves one, and a
+        // port saved as 0 (no port field) means the protocol default.
+        assert_eq!(
+            connection_host(&hostless, &json!({ "runtime": { "host": "10.0.0.9" } })),
+            Some(("10.0.0.9".to_string(), 502))
+        );
+        let saved = json!({ "host": "10.0.0.5", "port": 0 });
+        assert_eq!(connection_host(&saved, &json!({})), Some(("10.0.0.5".to_string(), 502)));
+        let saved = json!({ "host": "10.0.0.5", "port": 1502 });
+        assert_eq!(connection_host(&saved, &json!({})), Some(("10.0.0.5".to_string(), 1502)));
     }
 
     /// `modbus/open` clamps the values it accepts, so a device form typo cannot

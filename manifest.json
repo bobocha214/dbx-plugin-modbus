@@ -3,7 +3,7 @@
   "manifest_version": 1,
   "id": "io.github.bobocha214.modbus",
   "name": "Modbus TCP",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "bobocha214",
   "description": "Read and write Modbus TCP data from industrial devices.",
   "icon": "assets/plugin.svg",
@@ -35,45 +35,16 @@
       "label": "Modbus TCP",
       "icon": "assets/plugin.svg",
       "database_type": "modbus-tcp",
-      "description": "Connect to a Modbus TCP server such as a PLC, gateway or remote IO coupler.",
+      "description": "Create an empty Modbus workspace; devices, addresses and timing are configured inside the workbench.",
       "fields": [
         {
           "key": "display_name",
-          "label": "Connection name",
+          "label": "Workspace name",
           "type": "text",
           "binding": "name",
           "default": "Modbus device",
+          "description": "Only labels the workspace. The host, port and slave id belong to each device inside the workbench.",
           "required": true
-        },
-        {
-          "key": "host",
-          "label": "Host",
-          "type": "text",
-          "binding": "host",
-          "default": "192.168.1.10",
-          "required": false
-        },
-        {
-          "key": "port",
-          "label": "Port",
-          "type": "number",
-          "binding": "port",
-          "default": 502,
-          "required": false
-        },
-        {
-          "key": "unit_id",
-          "label": "Unit id (slave address)",
-          "type": "number",
-          "binding": "config",
-          "default": 1
-        },
-        {
-          "key": "timeout_ms",
-          "label": "Request timeout (ms)",
-          "type": "number",
-          "binding": "config",
-          "default": 3000
         }
       ],
       "workbench": "io.github.bobocha214.modbus.modbus.workbench",
@@ -121,22 +92,11 @@
       "contributions": {
         "io.github.bobocha214.modbus.modbus": {
           "label": "Modbus TCP",
-          "description": "连接 Modbus TCP 服务端，例如 PLC、网关或远程 IO。",
+          "description": "创建一个空的 Modbus 工作区；设备、地址与超时都在工作台里配置。",
           "fields": {
             "display_name": {
-              "label": "连接名称"
-            },
-            "host": {
-              "label": "主机地址"
-            },
-            "port": {
-              "label": "端口"
-            },
-            "unit_id": {
-              "label": "单元号（从站地址）"
-            },
-            "timeout_ms": {
-              "label": "请求超时（毫秒）"
+              "label": "工作区名称",
+              "description": "只用于标识这个工作区。主机地址、端口和从站号属于工作台里的每台设备。"
             }
           }
         },
