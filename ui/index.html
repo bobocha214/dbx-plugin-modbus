@@ -1012,14 +1012,16 @@
       // One configuration per range. Each remembers what it last read, so
       // switching between them does not blank the display.
       const SCOPE_DEFAULTS = {
-        deviceId: "", area: "holding", start: 0, quantity: 32,
+        deviceId: "", area: "holding", start: 0, quantity: 10,
         dataType: "uint16", byteOrder: "ABCD", wordOrder: "big",
         format: "unsigned", intervalMs: 1000, name: "",
         // How the values are laid out. Columns × rows is one page; a range
         // larger than that is paged rather than scrolled, so the same number of
         // values is always visible while polling. (A value may span several
-        // registers depending on its data type.)
-        columns: 4, rows: 8
+        // registers depending on its data type.) Five columns divide the ten
+        // default addresses into two full rows, and the page still has room for
+        // forty values before paging kicks in.
+        columns: 5, rows: 8
       };
       // `page` is deliberately absent — where you are looking is not a setting.
       const SCOPE_KEYS = ["id", ...Object.keys(SCOPE_DEFAULTS)];
@@ -1097,6 +1099,9 @@
         const state = {
           devices: [], scopes: [], activeId: null, selectedDeviceId: null,
           tab: "ranges", busy: false, timer: null, tx: 0, err: 0,
+          // A definition edited while a read is in flight is remembered instead
+          // of dropped, so the newest settings are always what lands on screen.
+          readQueued: false,
           mergeView: false,
           // Read history is diagnostic, so it lives in memory only.
           log: [], logOpen: false
@@ -1591,26 +1596,17 @@
             type: "text", value: device.host || "", placeholder: "192.168.1.10",
             onchange: (event) => {
               device.host = event.target.value.trim();
-              persistDevices();
-              renderDeviceList();
-              renderHeaderDevice();
+              applyEndpoint(device);
             }
           });
           formRow(addressSection, t.host, hostInput);
           formPair(
             addressSection,
-            t.port, numberInput(device, "port", 1, 65535, () => {
-              persistDevices();
-              renderDeviceList();
-              renderHeaderDevice();
-            }),
-            t.unit, numberInput(device, "unitId", 0, 255, () => {
-              persistDevices();
-              renderHeaderDevice();
-            })
+            t.port, numberInput(device, "port", 1, 65535, () => applyEndpoint(device)),
+            t.unit, numberInput(device, "unitId", 0, 255, () => applyUnit(device))
           );
           formRow(addressSection, t.deviceTimeout, numberInput(device, "timeoutMs", 200, 120000, () => {
-            persistDevices();
+            applyEndpoint(device);
           }));
           configForm.appendChild(addressSection);
 
@@ -1660,6 +1656,36 @@
           connectButton.disabled = device.status === "opening";
           connectButton.textContent = device.status === "open" ? t.reconnect : t.connect;
           disconnectButton.disabled = device.status !== "open";
+        }
+
+        /**
+         * An open session is bound to the address, port and timeout it was
+         * opened with, so editing any of them re-dials the new endpoint instead
+         * of leaving the grid talking to the old one. A device that was never
+         * dialled stays put: the first connection is the Connect button's job,
+         * not something a half-typed address should trigger.
+         */
+        async function applyEndpoint(device) {
+          persistDevices();
+          renderDeviceList();
+          renderHeaderDevice();
+          if (!device) return;
+          if (!String(device.host || "").trim()) {
+            await closeDevice(device);
+            syncOnboard();
+            return;
+          }
+          if (device.status !== "open" && device.status !== "error") return;
+          await closeDevice(device);
+          device.retryDelay = 0;
+          if (await openDevice(device, { quiet: true })) requestRead();
+        }
+
+        /** The slave id travels with every read, so it only needs a fresh read. */
+        function applyUnit(device) {
+          persistDevices();
+          renderHeaderDevice();
+          if (device && device.status === "open") requestRead();
         }
 
         // ---- scope list -----------------------------------------------------
@@ -1835,7 +1861,7 @@
               scope.dataType = event.target.value;
               syncWordOrder();
               syncQuantityHint();
-              changedDisplay();
+              changedInterpretation();
             }
           }, DATA_TYPES.map((value) => el("option", {
             value, text: value, selected: value === scope.dataType ? "selected" : null
@@ -1884,10 +1910,10 @@
         }
 
         /**
-         * Changing which addresses are read invalidates what is on screen.
-         * Changing only how they are interpreted does not: the registers that
-         * came back are still correct, so the grid is re-rendered rather than
-         * emptied, and byte order takes effect without another request.
+         * Changing which addresses are read invalidates what is on screen, so
+         * the grid is emptied and read again immediately — the edit is the
+         * request. No "Read" or "Poll" click is needed, and a running poll is
+         * not restarted: the queued pass simply reads the new definition.
          */
         function changedDefinition() {
           const scope = active();
@@ -1898,14 +1924,32 @@
           persistScopes();
           renderScopeList();
           renderGrid(true);
-          // A new range has nothing to show until it is read, and the user has
-          // just asked for it. Polling will pick it up on the next tick.
-          if (!state.timer) readActive();
+          requestRead();
         }
 
         function changedDisplay() {
           persistScopes();
           renderGrid();
+        }
+
+        /**
+         * A wider data type makes every value span more registers, so the
+         * registers the last read returned may no longer cover the grid. Byte
+         * and word order only re-decode what is already here; the data type
+         * also asks for more words when it needs them, instead of leaving the
+         * new half of the grid empty until someone clicks again.
+         */
+        function changedInterpretation() {
+          const scope = active();
+          persistScopes();
+          if (!scope) return;
+          renderScopeList();
+          renderGrid();
+          const rc = isBitArea(scope.area) ? 1 : registerCount(scope.dataType);
+          const have = scope.result && !scope.result.error
+            ? (scope.result.registers || []).length
+            : 0;
+          if (Math.max(1, scope.quantity) * rc > have) requestRead();
         }
 
         // ---- reading --------------------------------------------------------
@@ -1973,6 +2017,24 @@
           }
         }
 
+        /**
+         * Asks for a read right now, without waiting for the next polling tick.
+         * A read already in flight cannot be interrupted, so the request is
+         * queued and the running pass flushes it: the last definition edited is
+         * therefore always the one that gets read.
+         */
+        function requestRead() {
+          if (state.busy) { state.readQueued = true; return; }
+          readActive();
+        }
+
+        function flushQueuedRead() {
+          if (!state.readQueued) return;
+          state.readQueued = false;
+          if (state.busy) return;
+          readActive();
+        }
+
         async function readActive() {
           const merge = state.mergeView;
           const scope = active();
@@ -1984,7 +2046,9 @@
           if (device.status !== "open") {
             // The first read of a device is also the thing that connects it.
             const opened = await openDevice(device, { quiet: true });
-            if (!opened) return;
+            // A dial that failed already scheduled a retry, which reads on the
+            // way back up; running a queued pass now would just dial again.
+            if (!opened) { state.readQueued = false; return; }
           }
           state.busy = true;
           try {
@@ -1999,6 +2063,7 @@
           } finally {
             state.busy = false;
           }
+          flushQueuedRead();
         }
 
         /**

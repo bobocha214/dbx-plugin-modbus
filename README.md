@@ -55,10 +55,18 @@ imposing a look of its own. Nothing is hard-coded to a white background.
   loop; it stays `not connected` until you fill the field in.
 - **Ranges.** Each entry is one contiguous range — device, area, start address,
   quantity — with its own data type, byte order, word order, display format and
-  scan rate. Selecting one loads it: the grid, the form and the decoded readout
-  all follow the selection. Ranges are added with `+`, which starts the new one
-  where the previous one ended, and deleted from the row itself. The last range
-  cannot be deleted.
+  scan rate. A new range reads ten addresses, the common size of a block worth
+  watching; quantity, start and area are all editable afterwards. Selecting one
+  loads it: the grid, the form and the decoded readout all follow the selection.
+  Ranges are added with `+`, which starts the new one where the previous one
+  ended, and deleted from the row itself. The last range cannot be deleted.
+- **Editing the definition takes effect on the spot.** Changing the device, area,
+  start address, quantity or data type issues a fresh read by itself — there is
+  no need to press Read or Poll again, and a running poll is not interrupted, it
+  simply reads the new definition on the queued pass. A data type that makes each
+  value span more registers also fetches the extra words instead of leaving half
+  the grid blank. Device edits follow the same rule: a new address, port or
+  timeout re-dials the session, and a new slave id is used by the next read.
 - **The right side is only addresses and values** — one cell per address, holding
   the address, the value and the untouched raw word, with a fixed-width hex
   gutter so the column lines up.
@@ -80,7 +88,7 @@ imposing a look of its own. Nothing is hard-coded to a white background.
   so an accidental double-click is harmless. Coil cells take `true`/`false`.
   Read-only areas (input registers, discrete inputs) are not editable, matching
   the backend rule.
-- **Byte order and word order affect the decoded value only.** The raw word in
+- **Byte order, word order and display format affect the decoded value only.** The raw word in
   each cell always shows the 16-bit register that came off the wire; changing
   either option re-decodes the value and re-renders the grid without another
   request. Word order is disabled for types narrower than 64 bits, where it would
