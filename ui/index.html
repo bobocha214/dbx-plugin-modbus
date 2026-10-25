@@ -438,6 +438,23 @@
         color: var(--dbx-muted-fg); line-height: 1.6; font-size: 12.5px;
       }
 
+      /* -------------------------------------------------------- onboarding */
+      /* Shown while no device has an address. The workbench opens its own
+         sessions, so this is the first step of using it, not an error. */
+      .onboard {
+        flex: 1; min-height: 0; display: flex;
+        align-items: center; justify-content: center; padding: 24px;
+      }
+      .onboard-card {
+        display: flex; flex-direction: column; align-items: center; gap: 10px;
+        max-width: 360px; padding: 22px 24px; text-align: center;
+        background: var(--dbx-card); color: var(--dbx-card-fg);
+        border: var(--dbx-line); border-radius: var(--dbx-radius-lg);
+      }
+      .onboard-title { font-size: 13px; font-weight: 600; }
+      .onboard-body { font-size: 12px; line-height: 1.65; color: var(--dbx-muted-fg); }
+      .onboard-card button { margin-top: 2px; }
+
       /* ---------------------------------------------------------- read log */
       /* A drawer under the data: what was read, from which device, and — when
          it failed — the exact reason the backend gave. */
@@ -582,8 +599,8 @@
           emptyTable: "Press Read to load this range.",
           confirmWriteBody: "This sends a write request to the device. Check the target and the value before continuing.",
           cancel: "Cancel", confirm: "Write now",
-          notConnected: "no connection", connected: "connected",
-          noConnection: "This workbench was opened without a connection. Open it from a saved connection in the sidebar.",
+          standalone: "standalone",
+          standaloneHint: "This workbench configures and opens its own device sessions; no saved connection is needed.",
           tx: "Tx", err: "Err",
           writeTitleRegister: "Write register", writeTitleCoil: "Write coil",
           writeHint: "Double-click a value to write it. Read-only areas are not editable.",
@@ -600,7 +617,7 @@
           mergeView: "Merge", singleView: "Single", mergeHint: "Show all ranges of this device together",
           selectRange: "Show in single view",
           // Devices
-          devices: "Devices", device: "Device", tabDevices: "Devices", tabRanges: "Ranges",
+          device: "Device", tabDevices: "Devices", tabRanges: "Ranges",
           addDevice: "Add device", deviceName: "Name", groupDevice: "Address",
           host: "Host", port: "Port", deviceTimeout: "Timeout (ms)",
           groupConnection: "Connection", connect: "Connect", disconnect: "Disconnect",
@@ -608,7 +625,11 @@
           deviceOpen: "connected", deviceOpening: "connecting…",
           deviceIdle: "not connected", deviceError: "unreachable",
           noDevices: "No devices yet.", noDevice: "No device",
+          untitledDevice: "New device",
           deviceInUse: "This device is still used by ranges",
+          onboardTitle: "Connect a device",
+          onboardBody: "Type the address of the Modbus TCP server in the device form on the left, then press Connect. The address is remembered for next time.",
+          onboardAction: "Set up a device",
           emptyList: "Nothing here yet.",
           // Read log
           logButton: "Log", logTitle: "Read log", logEmpty: "No reads yet.",
@@ -624,23 +645,14 @@
           area: "区域", address: "地址", quantity: "值数量", dataType: "数据类型", quantityHintBits: "线圈 / 离散输入的个数。", quantityHintRegs: "值的个数；每个占 {rc} 个 16 位寄存器。",
           byteOrder: "字节序", wordOrder: "字序", unit: "从站号",
           value: "值", raw: "原始值", state: "状态", format: "显示格式",
-          subscribe: "订阅", unsubscribe: "取消订阅",
-          nodeId: "节点 ID", addNodeHint: "输入节点 ID 后回车加入监视列表",
-          browse: "地址空间", watch: "数据访问视图", attributes: "属性",
-          browseHint: "单击展开；双击节点可加入监视列表。",
-          attrHint: "在地址空间中选择节点以查看其属性。",
-          namespace: "命名空间", allNamespaces: "全部命名空间", refresh: "重新浏览",
-          emptyNodes: "监视列表为空。请浏览地址空间，或在上方输入节点 ID。",
           emptyGrid: "暂无可显示的寄存器。",
           emptyTable: "点击「读取」加载该范围。",
           confirmWriteBody: "这会对设备发起写操作，请核对目标地址与数值。",
           cancel: "取消", confirm: "确认写入",
-          notConnected: "未连接", connected: "已连接",
-          noConnection: "该工作台未绑定连接，请从左侧连接树中的已保存连接打开。",
-          loading: "加载中…", noChildren: "无子节点",
+          standalone: "独立运行",
+          standaloneHint: "该工作台自行配置并打开设备会话，无需从已保存的连接打开。",
           tx: "发送", err: "错误",
-          quality: "质量", timestamp: "时间戳",
-          writeTitleRegister: "写入寄存器", writeTitleCoil: "写入线圈", writeTitleNode: "写入节点",
+          writeTitleRegister: "写入寄存器", writeTitleCoil: "写入线圈",
           writeHint: "双击数值即可写入；只读区域不可编辑。",
           start: "起始地址", scope: "范围", config: "配置",
           scopes: "配置", addScope: "新建配置", removeScope: "删除",
@@ -654,7 +666,7 @@
           prevPage: "上一页", nextPage: "下一页",
           mergeView: "合并", singleView: "单页", mergeHint: "把该设备的所有范围一起显示",
           selectRange: "在单页中查看",
-          devices: "设备", device: "设备", tabDevices: "设备", tabRanges: "配置",
+          device: "设备", tabDevices: "设备", tabRanges: "配置",
           addDevice: "添加设备", deviceName: "名称", groupDevice: "地址",
           host: "IP 地址", port: "端口", deviceTimeout: "超时（毫秒）",
           groupConnection: "连接", connect: "连接", disconnect: "断开",
@@ -662,6 +674,10 @@
           deviceOpen: "已连接", deviceOpening: "连接中…",
           deviceIdle: "未连接", deviceError: "无法连接",
           noDevices: "还没有设备。", noDevice: "无设备",
+          untitledDevice: "新设备",
+          onboardTitle: "连接设备",
+          onboardBody: "在左侧设备表单里填写 Modbus TCP 服务器地址，然后点击「连接」。地址会被记住，下次打开即可用。",
+          onboardAction: "去配置设备",
           deviceInUse: "该设备仍被配置引用",
           emptyList: "暂无内容。",
           logButton: "日志", logTitle: "读取日志", logEmpty: "还没有读取记录。",
@@ -1016,11 +1032,17 @@
 
       function deviceLabel(device) {
         if (!device) return "";
-        return (device.name && device.name.trim()) || device.host || t.devices;
+        return (device.name && device.name.trim())
+          || String(device.host || "").trim()
+          || t.untitledDevice;
       }
 
       function deviceEndpoint(device) {
-        return device ? `${device.host}:${device.port}` : "";
+        if (!device) return "";
+        const host = String(device.host || "").trim();
+        // A device with no address has no endpoint yet; ":502" would read as a
+        // broken address rather than an empty field.
+        return host ? `${host}:${device.port}` : "";
       }
 
       /** `Holding 0 – 31` when the user has not named the range themselves. */
@@ -1106,6 +1128,26 @@
         const gridWrap = el("div", { class: "grid-wrap" }, [valueGrid]);
         const errorBar = el("div", { class: "error-bar", style: "display:none" });
 
+        // First run: no device has an address yet, so there is nothing to read.
+        // Point at the form instead of showing an empty table.
+        const onboard = el("div", { class: "onboard", style: "display:none" }, [
+          el("div", { class: "onboard-card" }, [
+            el("div", { class: "onboard-title", text: t.onboardTitle }),
+            el("div", { class: "onboard-body", text: t.onboardBody }),
+            el("button", {
+              class: "primary", text: t.onboardAction,
+              onclick: () => { setTab("devices"); focusHostField(); }
+            })
+          ])
+        ]);
+
+        function syncOnboard() {
+          const device = selectedDevice();
+          const unconfigured = !device || !String(device.host || "").trim();
+          onboard.style.display = unconfigured ? "" : "none";
+          gridWrap.style.display = unconfigured ? "none" : "";
+        }
+
         const rangeLabel = el("span", { class: "count" });
         const pageInfo = el("span", { class: "page-info" });
         const prevButton = el("button", {
@@ -1166,7 +1208,7 @@
         ]);
 
         const content = el("section", { class: "content" }, [
-          contentHead, errorBar, gridWrap, logPanel, footnote
+          contentHead, errorBar, onboard, gridWrap, logPanel, footnote
         ]);
 
         root.appendChild(sidebar);
@@ -1284,7 +1326,7 @@
             item.appendChild(el("div", { class: "scope-body" }, [
               el("span", {
                 class: "scope-name", text: deviceLabel(device),
-                title: `${deviceLabel(device)} · ${deviceEndpoint(device)}`
+                title: [deviceLabel(device), deviceEndpoint(device)].filter(Boolean).join(" · ")
               }),
               el("span", { class: "scope-meta", text: deviceSummary(device) })
             ]));
@@ -1310,19 +1352,24 @@
         }
 
         function deviceSummary(device) {
-          return `${deviceEndpoint(device)} · ${statusText(device)}`;
+          return [deviceEndpoint(device), statusText(device)].filter(Boolean).join(" · ");
         }
 
         function renderHeaderDevice() {
+          // Every device-state change funnels through here, so it is also where
+          // the first-run prompt is kept in step with the selected device.
+          syncOnboard();
           const scope = active();
           const device = scope ? deviceOf(scope) : null;
           const conn = document.querySelector("#conn");
           const connId = document.querySelector("#conn-id");
           if (!conn || !connId) return;
           conn.classList.remove("live", "dead");
-          if (!device) {
-            connId.textContent = t.noDevice;
-            connId.title = "";
+          // Nothing to dial yet: name the workbench mode rather than a device
+          // the user has not set up.
+          if (!device || !String(device.host || "").trim()) {
+            connId.textContent = connectionId ? t.noDevice : t.standalone;
+            connId.title = connectionId ? "" : t.standaloneHint;
             return;
           }
           if (device.status === "open") conn.classList.add("live");
@@ -1402,6 +1449,19 @@
          */
         async function openDevice(device, options) {
           if (!device || device.status === "opening") return false;
+          // A device with no address has nothing to dial. Retrying it would spin
+          // forever on a field the user has not filled in yet, so it stays idle
+          // and the first-run prompt keeps pointing at the form.
+          if (!String(device.host || "").trim()) {
+            clearTimeout(device.retryTimer);
+            device.retryTimer = null;
+            device.retryDelay = 0;
+            device.status = "idle";
+            device.latencyMs = null;
+            device.error = null;
+            syncDeviceState();
+            return false;
+          }
           const quiet = options && options.quiet;
           clearTimeout(device.retryTimer);
           device.retryTimer = null;
@@ -1504,7 +1564,7 @@
           const addressSection = el("div", { class: "config-section" }, [
             el("div", { class: "title", text: t.groupDevice })
           ]);
-          formRow(addressSection, t.host, el("input", {
+          const hostInput = el("input", {
             type: "text", value: device.host || "", placeholder: "192.168.1.10",
             onchange: (event) => {
               device.host = event.target.value.trim();
@@ -1512,7 +1572,8 @@
               renderDeviceList();
               renderHeaderDevice();
             }
-          }));
+          });
+          formRow(addressSection, t.host, hostInput);
           formPair(
             addressSection,
             t.port, numberInput(device, "port", 1, 65535, () => {
@@ -1552,8 +1613,16 @@
           ]));
           configForm.appendChild(statusSection);
 
-          deviceFormRefs = { deviceId: device.id, statusLine, errorLine, connectButton, disconnectButton };
+          deviceFormRefs = { deviceId: device.id, statusLine, errorLine, connectButton, disconnectButton, hostInput };
           syncDeviceForm();
+        }
+
+        /** Puts the caret in the address field, for the first-run prompt. */
+        function focusHostField() {
+          const input = deviceFormRefs && deviceFormRefs.hostInput;
+          if (!input) return;
+          input.focus();
+          input.select();
         }
 
         function syncDeviceForm() {
@@ -2493,8 +2562,9 @@
           if (!scopes.length) scopes = [newScope()];
 
           // A workbench on a saved connection starts with that endpoint as its
-          // first device, so the IP never has to be typed twice.
-          if (!devices.length) {
+          // first device, so the IP never has to be typed twice. Without one,
+          // the device form is the only source of an address.
+          if (!devices.length && connectionId) {
             let seed = null;
             try {
               seed = await invoke("modbus/connection_info", { connectionId }, 10000);
@@ -2519,6 +2589,12 @@
 
           state.devices = devices;
           state.selectedDeviceId = devices[0].id;
+
+          // Nothing configured yet: land on the device form, because an address
+          // is the only thing that can make the register grid useful.
+          if (!devices.some((device) => String(device.host || "").trim())) {
+            state.tab = "devices";
+          }
 
           // Ranges from before devices existed carry their own unit id. They
           // are attached to the first device, which inherits that unit so the
@@ -2619,15 +2695,18 @@
         const conn = document.querySelector("#conn");
         const connId = document.querySelector("#conn-id");
         connectionId = context.connectionId || context.connection_id || null;
-        if (!connectionId) {
-          conn.classList.add("dead");
-          connId.textContent = t.notConnected;
-          document.querySelector("#main").appendChild(el("div", { class: "empty", text: t.noConnection }));
-          return;
+        // A workbench opened on its own is a first-class case here: the device
+        // form owns its sessions, so nothing below depends on a host connection.
+        // Seeded from a saved connection, the id only namespaces storage and
+        // pre-fills the first device's address.
+        if (connectionId) {
+          conn.classList.add("live");
+          connId.textContent = connectionId;
+          connId.title = connectionId;
+        } else {
+          connId.textContent = t.standalone;
+          connId.title = t.standaloneHint;
         }
-        conn.classList.add("live");
-        connId.textContent = connectionId;
-        connId.title = connectionId;
 
         // The Modbus workbench: configuration on the left, values on the right.
         const main = document.querySelector("#main");

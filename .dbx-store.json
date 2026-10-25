@@ -1,6 +1,6 @@
 {
   "name": "Modbus TCP",
-  "description": "Read and write Modbus TCP registers on PLCs, gateways and remote IO couplers, with polling and guarded writes.",
+  "description": "Read and write Modbus TCP registers on PLCs, gateways and remote IO couplers. Devices are configured and connected right in the workbench, with polling and guarded writes.",
   "icon": "assets/plugin.svg",
   "tags": [
     "modbus",

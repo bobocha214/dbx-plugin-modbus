@@ -87,7 +87,7 @@
       "type": "workbench",
       "id": "io.github.bobocha214.modbus.modbus.workbench",
       "label": "Modbus TCP workbench",
-      "description": "Register table with periodic polling and guarded writes.",
+      "description": "Register table with periodic polling and guarded writes; devices are configured and connected inside the workbench.",
       "icon": "assets/plugin.svg",
       "ai": {
         "recommendations": [
@@ -142,7 +142,7 @@
         },
         "io.github.bobocha214.modbus.modbus.workbench": {
           "label": "Modbus TCP 工作台",
-          "description": "寄存器表、周期轮询与带二次确认的写入。"
+          "description": "寄存器表、周期轮询与带二次确认的写入；设备在工作台内直接配置并连接。"
         }
       }
     }

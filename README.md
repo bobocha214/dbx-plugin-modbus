@@ -43,8 +43,13 @@ imposing a look of its own. Nothing is hard-coded to a white background.
   `connecting`, `unreachable` with the backend's reason, or `not connected` — and
   a device that fails is retried with a growing, capped delay instead of being
   silently treated as up. A device still referenced by a range cannot be deleted.
-  A new workbench seeds its first device from the saved DBX connection, so the IP
-  never has to be typed twice.
+- **The workbench configures its own connections.** Opening it is enough: the
+  saved connection only seeds the first device's address, and a workbench opened
+  with no connection at all still works, showing `standalone` in the header.
+  Until a device has an address the content area shows a prompt that jumps to the
+  form, so the first thing you do is enter an IP rather than stare at an empty
+  grid. A device with no address is never dialled and never enters the retry
+  loop; it stays `not connected` until you fill the field in.
 - **Ranges.** Each entry is one contiguous range — device, area, start address,
   quantity — with its own data type, byte order, word order, display format and
   scan rate. Selecting one loads it: the grid, the form and the decoded readout
@@ -225,8 +230,9 @@ the packager appends `.exe` on Windows.
 - Empty configuration, wrong credentials, timeouts, an unreachable device and a sidecar
   restart all surface as a readable error rather than a hang.
 - Light and dark DBX themes, `zh-CN` and `en`.
-- Reconnecting, closing a workbench, opening the same workbench twice, and an empty
-  workbench context.
+- Reconnecting, closing a workbench, opening the same workbench twice, and a workbench
+  opened with no connection at all — the first-run prompt, then a device configured and
+  connected from inside it.
 - No development data or credentials inside the packaged `.dbxp`.
 
 ## Release
