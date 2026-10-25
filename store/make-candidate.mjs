@@ -11,7 +11,7 @@
 //     --tag v0.1.0 \
 //     --release-candidates ./release-candidates.json \
 //     --metadata ./.dbx-store.json \
-//     --output ./store/candidates/io.github.yuzhi.modbus.json
+//     --output ./store/candidates/io.github.bobocha214.modbus.json
 //
 // --release-candidates also accepts the asset's HTTPS URL.
 

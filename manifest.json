@@ -1,10 +1,10 @@
 {
   "$schema": "https://raw.githubusercontent.com/t8y2/dbx/main/plugins/manifest.schema.json",
   "manifest_version": 1,
-  "id": "io.github.yuzhi.modbus",
+  "id": "io.github.bobocha214.modbus",
   "name": "Modbus TCP",
   "version": "0.1.0",
-  "publisher": "yuzhi",
+  "publisher": "bobocha214",
   "description": "Read and write Modbus TCP data from industrial devices.",
   "icon": "assets/plugin.svg",
   "homepage": "https://github.com/bobocha214/dbx-plugin-modbus",
@@ -31,7 +31,7 @@
   "contributions": [
     {
       "type": "connection-provider",
-      "id": "io.github.yuzhi.modbus.modbus",
+      "id": "io.github.bobocha214.modbus.modbus",
       "label": "Modbus TCP",
       "icon": "assets/plugin.svg",
       "database_type": "modbus-tcp",
@@ -76,7 +76,7 @@
           "default": 3000
         }
       ],
-      "workbench": "io.github.yuzhi.modbus.modbus.workbench",
+      "workbench": "io.github.bobocha214.modbus.modbus.workbench",
       "capabilities": [
         "test",
         "connect",
@@ -85,7 +85,7 @@
     },
     {
       "type": "workbench",
-      "id": "io.github.yuzhi.modbus.modbus.workbench",
+      "id": "io.github.bobocha214.modbus.modbus.workbench",
       "label": "Modbus TCP workbench",
       "description": "Register table with periodic polling and guarded writes.",
       "icon": "assets/plugin.svg",
@@ -108,7 +108,7 @@
     },
     {
       "type": "mcp",
-      "id": "io.github.yuzhi.modbus.mcp",
+      "id": "io.github.bobocha214.modbus.mcp",
       "description": "Read-only Modbus TCP tools for the DBX AI assistant.",
       "ai_tools": true,
       "external_tools": false
@@ -119,7 +119,7 @@
       "name": "Modbus TCP",
       "description": "从工业设备读取和写入 Modbus TCP 数据。",
       "contributions": {
-        "io.github.yuzhi.modbus.modbus": {
+        "io.github.bobocha214.modbus.modbus": {
           "label": "Modbus TCP",
           "description": "连接 Modbus TCP 服务端，例如 PLC、网关或远程 IO。",
           "fields": {
@@ -140,7 +140,7 @@
             }
           }
         },
-        "io.github.yuzhi.modbus.modbus.workbench": {
+        "io.github.bobocha214.modbus.modbus.workbench": {
           "label": "Modbus TCP 工作台",
           "description": "寄存器表、周期轮询与带二次确认的写入。"
         }
