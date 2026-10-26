@@ -14,9 +14,9 @@ Built from the official `dbx-plugin create` **Rust + frontend** template.
 
 | Contribution | Type | Purpose |
 | --- | --- | --- |
-| `io.github.bobocha214.modbus.modbus` | connection-provider | Modbus TCP connection form |
-| `io.github.bobocha214.modbus.modbus.workbench` | workbench | Register table with polling and guarded writes |
-| `io.github.bobocha214.modbus.mcp` | mcp | Read-only tools for the DBX AI assistant |
+| `io.github.yuzhi.modbus.modbus` | connection-provider | Modbus TCP connection form |
+| `io.github.yuzhi.modbus.modbus.workbench` | workbench | Register table with polling and guarded writes |
+| `io.github.yuzhi.modbus.mcp` | mcp | Read-only tools for the DBX AI assistant |
 
 The workbench is served by `ui/index.html`; the page routes on
 `dbxPlugin.contributionId`.
