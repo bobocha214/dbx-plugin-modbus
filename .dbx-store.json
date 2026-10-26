@@ -16,7 +16,7 @@
   "source": "https://github.com/bobocha214/dbx-plugin-modbus",
   "homepage": "https://github.com/bobocha214/dbx-plugin-modbus",
   "license": "MIT",
-  "releaseNotes": "Initial release: Modbus TCP connection provider, register grid workbench with periodic polling, byte order and data type decoding, and guarded writes.",
+  "releaseNotes": "First DBX Store listing (0.2.0). Creating a connection asks only for a workspace name: devices are configured and connected inside the workbench, and a workbench opened with no connection still works. A new range reads ten addresses, editing its definition reads again on the spot, and values are written by double-clicking the cell of a holding register or coil.",
   "localizations": {
     "zh-CN": {
       "name": "Modbus TCP",
