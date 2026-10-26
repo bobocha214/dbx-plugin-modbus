@@ -1,5 +1,7 @@
 # Modbus TCP
 
+[English](README.md) · [简体中文](README.zh-CN.md)
+
 A DBX plugin that reads and writes **Modbus TCP** data from industrial
 devices: PLCs, gateways and remote IO couplers.
 
