@@ -13,9 +13,9 @@
 
 | 贡献点 | 类型 | 用途 |
 | --- | --- | --- |
-| `io.github.yuzhi.modbus.modbus` | connection-provider | Modbus TCP 连接表单 |
-| `io.github.yuzhi.modbus.modbus.workbench` | workbench | 带轮询与受控写入的寄存器表格 |
-| `io.github.yuzhi.modbus.mcp` | mcp | 供 DBX AI 助手使用的只读工具 |
+| `io.github.bobocha214.modbus.modbus` | connection-provider | Modbus TCP 连接表单 |
+| `io.github.bobocha214.modbus.modbus.workbench` | workbench | 带轮询与受控写入的寄存器表格 |
+| `io.github.bobocha214.modbus.mcp` | mcp | 供 DBX AI 助手使用的只读工具 |
 
 工作台由 `ui/index.html` 提供，页面按 `dbxPlugin.contributionId` 路由。
 

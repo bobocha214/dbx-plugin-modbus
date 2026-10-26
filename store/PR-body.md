@@ -1,8 +1,8 @@
 ## Plugin submission
 
-- Plugin ID: `io.github.yuzhi.modbus`
+- Plugin ID: `io.github.bobocha214.modbus`
 - Version: `0.2.0`
-- Publisher ID: `yuzhi`
+- Publisher ID: `bobocha214`
 
 ## Source repository and tag
 
