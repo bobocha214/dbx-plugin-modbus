@@ -16,7 +16,7 @@
   "source": "https://github.com/bobocha214/dbx-plugin-modbus",
   "homepage": "https://github.com/bobocha214/dbx-plugin-modbus",
   "license": "MIT",
-  "releaseNotes": "0.2.1 is a version update of this listing. Creating a connection asks only for a workspace name: devices are configured and connected inside the workbench, and a workbench opened with no connection still works. A new range reads ten addresses, editing its definition reads again on the spot, and a value is written only by pressing Enter in the cell - Esc or leaving the field cancels. The package now ships the MIT LICENSE.",
+  "releaseNotes": "0.2.1 更新：写入只在按下回车时才下发，Esc 或点开别处即取消；新建连接只需填工作区名称，设备与地址范围都在工作台里配置，不建连接也能直接打开工作台；新建地址范围默认读取 10 个地址，改完定义立刻重新读取，不必再点读取或轮询；数据类型变宽会自动补读缺少的寄存器；改设备地址或超时会自动重连；安装包内置 MIT LICENSE。\n\n0.2.1 is a version update of this listing. Creating a connection asks only for a workspace name: devices are configured and connected inside the workbench, and a workbench opened with no connection still works. A new range reads ten addresses, editing its definition reads again on the spot, and a value is written only by pressing Enter in the cell - Esc or leaving the field cancels. The package now ships the MIT LICENSE.",
   "localizations": {
     "zh-CN": {
       "name": "Modbus TCP",
