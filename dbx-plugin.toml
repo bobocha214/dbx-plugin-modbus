@@ -6,4 +6,4 @@ directory = "backend"
 binary = "dbx-plugin-modbus"
 
 [package]
-include = ["assets", "ui"]
+include = ["assets", "ui", "LICENSE"]

@@ -8,10 +8,10 @@
 //
 //   node store/make-candidate.mjs \
 //     --repo bobocha214/dbx-plugin-modbus \
-//     --tag v0.2.0 \
+//     --tag v0.2.1 \
 //     --release-candidates ./release-candidates.json \
 //     --metadata ./.dbx-store.json \
-//     --output ./store/candidates/io.github.bobocha214.modbus.json
+//     --output ./store/candidates/io.github.yuzhi.modbus.json
 //
 // --release-candidates also accepts the asset's HTTPS URL.
 

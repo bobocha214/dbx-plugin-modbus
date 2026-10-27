@@ -1,6 +1,6 @@
 {
   "name": "Modbus TCP",
-  "description": "Read and write Modbus TCP registers on PLCs, gateways and remote IO couplers. Devices are configured and connected right in the workbench, with polling and inline writes.",
+  "description": "Read and write Modbus TCP registers on PLCs, gateways and remote IO couplers, connecting to the host and port you enter (502 by default). Devices and address ranges are configured inside the workbench, with polling and inline writes that only send on Enter.",
   "icon": "assets/plugin.svg",
   "tags": [
     "modbus",
@@ -16,11 +16,11 @@
   "source": "https://github.com/bobocha214/dbx-plugin-modbus",
   "homepage": "https://github.com/bobocha214/dbx-plugin-modbus",
   "license": "MIT",
-  "releaseNotes": "First DBX Store listing (0.2.0). Creating a connection asks only for a workspace name: devices are configured and connected inside the workbench, and a workbench opened with no connection still works. A new range reads ten addresses, editing its definition reads again on the spot, and values are written by double-clicking the cell of a holding register or coil.",
+  "releaseNotes": "0.2.1 is a version update of this listing. Creating a connection asks only for a workspace name: devices are configured and connected inside the workbench, and a workbench opened with no connection still works. A new range reads ten addresses, editing its definition reads again on the spot, and a value is written only by pressing Enter in the cell - Esc or leaving the field cancels. The package now ships the MIT LICENSE.",
   "localizations": {
     "zh-CN": {
       "name": "Modbus TCP",
-      "description": "读写 PLC、网关和远程 IO 上的 Modbus TCP 寄存器，支持周期轮询与双击直接写入。"
+      "description": "读写 PLC、网关与远程 IO 上的 Modbus TCP 寄存器，主动连接你填写的 host:port（默认 502）；设备与地址范围都在工作台里配置，支持周期轮询与双击内联写入（只有回车才会发送）。"
     }
   }
 }

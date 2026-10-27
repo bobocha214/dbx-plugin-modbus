@@ -589,7 +589,7 @@
     <script>
       "use strict";
 
-      const PLUGIN_ID = "io.github.bobocha214.modbus";
+      const PLUGIN_ID = "io.github.yuzhi.modbus";
       const MODBUS_WORKBENCH = PLUGIN_ID + ".modbus.workbench";
 
       const host = window.dbxPlugin;
@@ -610,7 +610,8 @@
           standalone: "standalone",
           standaloneHint: "This workbench configures and opens its own device sessions; no saved connection is needed.",
           tx: "Tx", err: "Err",
-          writeHint: "Double-click a value to write it: Enter sends, Esc cancels. Discrete inputs and input registers are read-only.",
+          writeHint: "Double-click a value to write it: Enter sends, Esc or clicking elsewhere cancels. Discrete inputs and input registers are read-only.",
+          writeCancelled: "Not written — press Enter to send a value.",
           start: "Start address", scope: "Range", config: "Configuration",
           scopes: "Configurations", addScope: "New configuration", removeScope: "Delete",
           wordBig: "High first", wordLittle: "Low first",
@@ -661,7 +662,8 @@
           standalone: "独立运行",
           standaloneHint: "该工作台自行配置并打开设备会话，无需从已保存的连接打开。",
           tx: "发送", err: "错误",
-          writeHint: "双击数值即可直接改写：回车发送，Esc 取消；离散输入与输入寄存器为只读。",
+          writeHint: "双击数值即可改写：回车发送，Esc 或点别处取消；离散输入与输入寄存器为只读。",
+          writeCancelled: "未写入——需要按回车才会发送。",
           start: "起始地址", scope: "范围", config: "配置",
           scopes: "配置", addScope: "新建配置", removeScope: "删除",
           wordBig: "高字在前", wordLittle: "低字在前",
@@ -2531,8 +2533,17 @@
             if (event.key === "Enter") { event.preventDefault(); finish(true); }
             else if (event.key === "Escape") { event.preventDefault(); finish(false); }
           });
-          // A blur (click elsewhere, switch tab) commits unless already settled.
-          input.addEventListener("blur", () => finish(true));
+          // Only Enter writes. A blur (click elsewhere, switch tab) cancels:
+          // writing a PLC register is a physical side effect, so leaving the
+          // field must not be enough to trigger one. A dropped edit is announced
+          // rather than silently discarded, so the cell does not look broken.
+          input.addEventListener("blur", () => {
+            if (settled) return;
+            const typed = String(input.value).trim();
+            const changed = typed !== String(initial).trim();
+            finish(false);
+            if (changed && typed !== "") toast(t.writeCancelled, "info");
+          });
         }
 
         async function commitInlineWrite(scope, cell, raw) {

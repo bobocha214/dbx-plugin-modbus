@@ -13,9 +13,9 @@
 
 | 贡献点 | 类型 | 用途 |
 | --- | --- | --- |
-| `io.github.bobocha214.modbus.modbus` | connection-provider | Modbus TCP 连接表单 |
-| `io.github.bobocha214.modbus.modbus.workbench` | workbench | 带轮询与受控写入的寄存器表格 |
-| `io.github.bobocha214.modbus.mcp` | mcp | 供 DBX AI 助手使用的只读工具 |
+| `io.github.yuzhi.modbus.modbus` | connection-provider | Modbus TCP 连接表单 |
+| `io.github.yuzhi.modbus.modbus.workbench` | workbench | 带轮询与内联写入的寄存器表格 |
+| `io.github.yuzhi.modbus.mcp` | mcp | 供 DBX AI 助手使用的只读工具 |
 
 工作台由 `ui/index.html` 提供，页面按 `dbxPlugin.contributionId` 路由。
 
@@ -59,16 +59,18 @@
   一行并计数，所以一秒一次的轮询不会把其他事件冲掉，而新出现的失败仍然单独占一行。失败的读取会
   记下确切原因——Modbus 异常码、超时、连接被拒绝——并把同样的原因显示在网格上方，无论日志是否
   打开都看得见。
-- **双击数值即可写入。** 单元格就地变成输入框：`Enter` 发送、`Esc` 取消，文本没改就不写，所以误双击
-  是无害的。线圈单元格接受 `true`/`false`。只读区域（输入寄存器、离散输入）不可编辑，与后端规则一致。
+- **双击数值即可写入。** 单元格就地变成输入框，**只有 `Enter` 会发送**：`Esc` 会取消，点到别处同样取消，
+  所以「离开输入框」这件事永远不可能写进一个寄存器。被丢弃的编辑会明确提示，而不是悄悄消失；双击后
+  什么都没输入也不会写。线圈单元格接受 `true`/`false`。只读区域（输入寄存器、离散输入）不可编辑，
+  与后端规则一致。
 - **字节序、字序与显示格式只影响解码后的值。** 每格的原始字始终显示真正从线上收到的 16 位寄存器；
   改这些选项只会重新解码并重绘网格，不额外发请求。字序对窄于 64 位的类型会禁用，因为它们本来没有
   高低字之分。
 - 头部的 `Tx`（已发请求）与 `Err`（失败响应）紧挨着「读取」和「轮询」按钮。
 - 侧边栏与网格之间的分隔条可拖动，也可以用方向键调整。
 
-工作台在头部报告连接状态。写入永远是「显式编辑某一格」的结果，并由提示条确认，提示里写明地址和
-实际发送的值；被拒绝的写入会显示后端给出的原因并把单元格恢复原样，而不是留着用户输入的值。
+工作台在头部报告连接状态。写入永远是「在某一格里按下 `Enter`」的结果，并由提示条确认，提示里写明地址
+和实际发送的值；被拒绝的写入会显示后端给出的原因并把单元格恢复原样，而不是留着用户输入的值。
 
 ## Modbus TCP 协议实现
 
@@ -150,8 +152,9 @@ cd backend && cargo test
 dbx-plugin package .
 ```
 
-该命令会为当前宿主构建原生后端，收集 `manifest.json`、`assets/` 与 `ui/`，然后把未签名的、
-针对特定目标的 `.dbxp` 候选包以及对应的 `.artifact.json` 写入 `dist/`。
+该命令会为当前宿主构建原生后端，收集 `manifest.json`、`assets/`、`ui/` 与 `LICENSE`（即
+`dbx-plugin.toml` 里 `[package] include` 列出的内容），然后把未签名的、针对特定目标的 `.dbxp` 候选包
+以及对应的 `.artifact.json` 写入 `dist/`。
 
 > sidecar 二进制是目标相关的，所以插件按操作系统与 CPU 架构分别出包，而不是一个
 > `universal` 包。因此本地构建永远只会产出**一个**目标——你正在运行的那个。

@@ -14,9 +14,9 @@ Built from the official `dbx-plugin create` **Rust + frontend** template.
 
 | Contribution | Type | Purpose |
 | --- | --- | --- |
-| `io.github.bobocha214.modbus.modbus` | connection-provider | Modbus TCP connection form |
-| `io.github.bobocha214.modbus.modbus.workbench` | workbench | Register table with polling and guarded writes |
-| `io.github.bobocha214.modbus.mcp` | mcp | Read-only tools for the DBX AI assistant |
+| `io.github.yuzhi.modbus.modbus` | connection-provider | Modbus TCP connection form |
+| `io.github.yuzhi.modbus.modbus.workbench` | workbench | Register table with polling and inline writes |
+| `io.github.yuzhi.modbus.mcp` | mcp | Read-only tools for the DBX AI assistant |
 
 The workbench is served by `ui/index.html`; the page routes on
 `dbxPlugin.contributionId`.
@@ -85,11 +85,12 @@ imposing a look of its own. Nothing is hard-coded to a white background.
   line. A failed read records the exact reason — a Modbus exception code, a
   timeout, a refused connection — and the same reason is shown above the grid, so
   it is visible whether or not the log is open.
-- **Double-click a value to write it.** The cell becomes an input in place:
-  `Enter` sends, `Esc` cancels, and leaving the field untouched writes nothing,
-  so an accidental double-click is harmless. Coil cells take `true`/`false`.
-  Read-only areas (input registers, discrete inputs) are not editable, matching
-  the backend rule.
+- **Double-click a value to write it.** The cell becomes an input in place.
+  Only `Enter` sends: `Esc` cancels, and so does clicking anywhere else, so
+  leaving the field can never write a register. A dropped edit says so instead
+  of vanishing, and a double-click that types nothing writes nothing. Coil cells
+  take `true`/`false`. Read-only areas (input registers, discrete inputs) are not
+  editable, matching the backend rule.
 - **Byte order, word order and display format affect the decoded value only.** The raw word in
   each cell always shows the 16-bit register that came off the wire; changing
   either option re-decodes the value and re-renders the grid without another
@@ -101,9 +102,9 @@ imposing a look of its own. Nothing is hard-coded to a white background.
   the arrow keys.
 
 The workbench reports connection state in the header. A write is always the
-result of an explicit edit of one cell and is confirmed by the toast that names
-the address and the value that was sent; a rejected write reports the backend's
-reason and restores the cell instead of leaving the typed value on screen.
+result of pressing `Enter` in one cell, and a toast names the address and the
+value that was sent; a rejected write reports the backend's reason and restores
+the cell instead of leaving the typed value on screen.
 
 ## Modbus TCP
 
@@ -199,8 +200,9 @@ dbx-plugin package .
 ```
 
 The command builds the native backend for the current host, stages `manifest.json`,
-`assets/` and `ui/`, then writes an unsigned target-specific `.dbxp` candidate plus a
-matching `.artifact.json` into `dist/`.
+`assets/`, `ui/` and `LICENSE` (the list in `[package] include` of
+`dbx-plugin.toml`), then writes an unsigned target-specific `.dbxp` candidate plus
+a matching `.artifact.json` into `dist/`.
 
 > The sidecar binary is target-specific, so the plugin ships one package
 > per OS and CPU architecture rather than a single `universal` package. A local
