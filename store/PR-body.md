@@ -11,7 +11,7 @@ only added file is `candidates/io.github.yuzhi.modbus.json`.
 
 | Point | What changed |
 | --- | --- |
-| Duplicate listing / identity transfer | The 0.2.0 submission used a new id `io.github.bobocha214.modbus` and a new publisher. That was wrong: it would have created a second entry and left 0.1.0 users without an upgrade path. This PR goes back to `io.github.yuzhi.modbus` + `yuzhi`, so 0.1.0 installs upgrade in place. #369 can be closed as superseded. |
+| Duplicate listing / identity transfer | The earlier submission in this PR used a new id `io.github.bobocha214.modbus` and a new publisher. That was wrong: it would have created a second entry and left 0.1.0 users without an upgrade path. This PR is updated in place and goes back to `io.github.yuzhi.modbus` + `yuzhi`, so 0.1.0 installs upgrade instead of getting a second entry. No separate new-id PR remains open. |
 | "Writes have a second confirmation" was untrue | The claim is gone from the manifest descriptions, both READMEs and the store metadata. The behaviour was also tightened: **only `Enter` writes**. `Esc` *and* leaving the field both cancel, and a dropped edit reports "Not written — press Enter" instead of vanishing. A double-click that types nothing still writes nothing. |
 | No LICENSE inside the package | `dbx-plugin.toml` now stages it: `[package] include = ["assets", "ui", "LICENSE"]`. The `.dbxp` carries `LICENSE` at the package root. |
 | Description should name the connection target | The plugin description now says it connects to the host and port the user enters (502 by default). |
@@ -91,3 +91,4 @@ https://github.com/bobocha214/dbx-plugin-modbus
 - [x] I have not included private keys, tokens, credentials, or proprietary data.
 - [x] The candidates are listed in `candidates/io.github.yuzhi.modbus.json`;
       `plugins/` and `catalog/` were not edited manually.
+- [x] `verified` is left to the maintainers.
