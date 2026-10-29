@@ -47,6 +47,35 @@ pub struct ModbusSession {
     transaction_id: AtomicU16,
 }
 
+/// One captured wire frame: what the plugin put on the socket (`tx`) or read
+/// back from it (`rx`). The workbench shows these verbatim, so the encoding is
+/// the plain uppercase hex of every byte on the wire, MBAP header included.
+pub struct WireFrame {
+    pub dir: &'static str,
+    pub bytes: Vec<u8>,
+}
+
+impl WireFrame {
+    fn tx(bytes: &[u8]) -> Self {
+        Self { dir: "tx", bytes: bytes.to_vec() }
+    }
+
+    fn rx(header: &[u8], body: &[u8]) -> Self {
+        let mut bytes = Vec::with_capacity(header.len() + body.len());
+        bytes.extend_from_slice(header);
+        bytes.extend_from_slice(body);
+        Self { dir: "rx", bytes }
+    }
+
+    pub fn hex(&self) -> String {
+        self.bytes
+            .iter()
+            .map(|byte| format!("{byte:02X}"))
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+}
+
 impl ModbusSession {
     pub fn new(host: impl Into<String>, port: u16, timeout: Duration) -> Self {
         Self {
@@ -97,7 +126,9 @@ impl ModbusSession {
     /// simply do not implement holding register 0.
     pub fn probe(&self) -> Result<(bool, String), String> {
         let _stream = self.connect()?;
-        match self.read_registers(1, FC_READ_HOLDING_REGISTERS, 0, 1) {
+        // The probe is a diagnostic dial; its frames are not surfaced anywhere.
+        let mut scratch = Vec::new();
+        match self.read_registers(1, FC_READ_HOLDING_REGISTERS, 0, 1, &mut scratch) {
             Ok(registers) => Ok((true, format!("holding register 0 = {}", registers[0]))),
             Err(error) => Ok((
                 true,
@@ -112,11 +143,17 @@ impl ModbusSession {
         }
     }
 
+    /// Runs one request/response exchange, appending the frames that actually
+    /// crossed the wire to `frames`. On a transport failure only the request is
+    /// captured (nothing complete came back); on a Modbus exception the
+    /// rejecting response frame is captured too, which is exactly what the
+    /// communication view is for.
     fn exchange(
         stream: &mut TcpStream,
         transaction_id: u16,
         unit_id: u8,
         pdu: &[u8],
+        frames: &mut Vec<WireFrame>,
     ) -> Result<Vec<u8>, Exchange> {
         // MBAP: transaction id, protocol id, length (unit id + PDU), unit id.
         let mut frame = Vec::with_capacity(7 + pdu.len());
@@ -126,6 +163,7 @@ impl ModbusSession {
         frame.push(unit_id);
         frame.extend_from_slice(pdu);
 
+        frames.push(WireFrame::tx(&frame));
         stream
             .write_all(&frame)
             .map_err(|error| Exchange::transport(error, "write request"))?;
@@ -160,6 +198,8 @@ impl ModbusSession {
             .read_exact(&mut body)
             .map_err(|error| Exchange::transport(error, "read response body"))?;
 
+        frames.push(WireFrame::rx(&header, &body));
+
         let function = body[0];
         if function & 0x80 != 0 {
             let code = body.get(1).copied().unwrap_or(0);
@@ -171,7 +211,12 @@ impl ModbusSession {
         Ok(body[1..].to_vec())
     }
 
-    fn transact(&self, unit_id: u8, pdu: &[u8]) -> Result<Vec<u8>, String> {
+    fn transact(
+        &self,
+        unit_id: u8,
+        pdu: &[u8],
+        frames: &mut Vec<WireFrame>,
+    ) -> Result<Vec<u8>, String> {
         let mut guard = self
             .stream
             .lock()
@@ -183,7 +228,7 @@ impl ModbusSession {
         let transaction_id = self.next_transaction_id();
         let first = {
             let stream = guard.as_mut().ok_or_else(|| "Modbus stream was lost".to_string())?;
-            Self::exchange(stream, transaction_id, unit_id, pdu)
+            Self::exchange(stream, transaction_id, unit_id, pdu, frames)
         };
 
         match first {
@@ -194,7 +239,7 @@ impl ModbusSession {
                 *guard = None;
                 let mut stream = self.connect()?;
                 let transaction_id = self.next_transaction_id();
-                match Self::exchange(&mut stream, transaction_id, unit_id, pdu) {
+                match Self::exchange(&mut stream, transaction_id, unit_id, pdu, frames) {
                     Ok(body) => {
                         *guard = Some(stream);
                         Ok(body)
@@ -215,6 +260,7 @@ impl ModbusSession {
         function_code: u8,
         address: u16,
         quantity: u16,
+        frames: &mut Vec<WireFrame>,
     ) -> Result<Vec<bool>, String> {
         if !matches!(function_code, FC_READ_COILS | FC_READ_DISCRETE_INPUTS) {
             return Err(format!("function code {function_code} is not a bit read"));
@@ -227,7 +273,7 @@ impl ModbusSession {
         pdu.extend_from_slice(&address.to_be_bytes());
         pdu.extend_from_slice(&quantity.to_be_bytes());
 
-        let body = self.transact(unit_id, &pdu)?;
+        let body = self.transact(unit_id, &pdu, frames)?;
         let byte_count = *body.first().ok_or("empty Modbus response")? as usize;
         let data = body.get(1..).ok_or("empty Modbus response")?;
         if data.len() < byte_count {
@@ -249,6 +295,7 @@ impl ModbusSession {
         function_code: u8,
         address: u16,
         quantity: u16,
+        frames: &mut Vec<WireFrame>,
     ) -> Result<Vec<u16>, String> {
         if !matches!(function_code, FC_READ_HOLDING_REGISTERS | FC_READ_INPUT_REGISTERS) {
             return Err(format!("function code {function_code} is not a register read"));
@@ -261,7 +308,7 @@ impl ModbusSession {
         pdu.extend_from_slice(&address.to_be_bytes());
         pdu.extend_from_slice(&quantity.to_be_bytes());
 
-        let body = self.transact(unit_id, &pdu)?;
+        let body = self.transact(unit_id, &pdu, frames)?;
         let byte_count = *body.first().ok_or("empty Modbus response")? as usize;
         let data = body.get(1..).ok_or("empty Modbus response")?;
         if byte_count != quantity as usize * 2 {
@@ -292,6 +339,7 @@ impl ModbusSession {
         function_code: u8,
         address: u16,
         count: u16,
+        frames: &mut Vec<WireFrame>,
     ) -> Result<Vec<u16>, String> {
         if count == 0 {
             return Ok(Vec::new());
@@ -305,7 +353,7 @@ impl ModbusSession {
         let mut remaining = count;
         while remaining > 0 {
             let step = remaining.min(CHUNK);
-            let registers = self.read_registers(unit_id, function_code, addr, step)?;
+            let registers = self.read_registers(unit_id, function_code, addr, step, frames)?;
             out.extend_from_slice(&registers);
             addr = addr.wrapping_add(step);
             remaining -= step;
@@ -313,12 +361,18 @@ impl ModbusSession {
         Ok(out)
     }
 
-    pub fn write_single_coil(&self, unit_id: u8, address: u16, value: bool) -> Result<u16, String> {
+    pub fn write_single_coil(
+        &self,
+        unit_id: u8,
+        address: u16,
+        value: bool,
+        frames: &mut Vec<WireFrame>,
+    ) -> Result<u16, String> {
         let mut pdu = Vec::with_capacity(5);
         pdu.push(5);
         pdu.extend_from_slice(&address.to_be_bytes());
         pdu.extend_from_slice(&if value { 0xFF00u16 } else { 0x0000u16 }.to_be_bytes());
-        let body = self.transact(unit_id, &pdu)?;
+        let body = self.transact(unit_id, &pdu, frames)?;
         echoed_address(&body, address)
     }
 
@@ -327,6 +381,7 @@ impl ModbusSession {
         unit_id: u8,
         address: u16,
         values: &[bool],
+        frames: &mut Vec<WireFrame>,
     ) -> Result<u16, String> {
         if values.is_empty() || values.len() > 1968 {
             return Err("a multiple coil write takes 1..=1968 values".to_string());
@@ -345,7 +400,7 @@ impl ModbusSession {
         pdu.push(byte_count as u8);
         pdu.extend_from_slice(&packed);
 
-        let body = self.transact(unit_id, &pdu)?;
+        let body = self.transact(unit_id, &pdu, frames)?;
         echoed_address(&body, address)
     }
 
@@ -354,12 +409,13 @@ impl ModbusSession {
         unit_id: u8,
         address: u16,
         value: u16,
+        frames: &mut Vec<WireFrame>,
     ) -> Result<u16, String> {
         let mut pdu = Vec::with_capacity(5);
         pdu.push(6);
         pdu.extend_from_slice(&address.to_be_bytes());
         pdu.extend_from_slice(&value.to_be_bytes());
-        let body = self.transact(unit_id, &pdu)?;
+        let body = self.transact(unit_id, &pdu, frames)?;
         echoed_address(&body, address)
     }
 
@@ -368,6 +424,7 @@ impl ModbusSession {
         unit_id: u8,
         address: u16,
         values: &[u16],
+        frames: &mut Vec<WireFrame>,
     ) -> Result<u16, String> {
         if values.is_empty() || values.len() > 123 {
             return Err("a multiple register write takes 1..=123 values".to_string());
@@ -381,7 +438,7 @@ impl ModbusSession {
             pdu.extend_from_slice(&value.to_be_bytes());
         }
 
-        let body = self.transact(unit_id, &pdu)?;
+        let body = self.transact(unit_id, &pdu, frames)?;
         echoed_address(&body, address)
     }
 }

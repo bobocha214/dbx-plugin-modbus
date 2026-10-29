@@ -3,7 +3,7 @@
   "manifest_version": 1,
   "id": "io.github.yuzhi.modbus",
   "name": "Modbus TCP",
-  "version": "0.2.1",
+  "version": "0.2.3",
   "publisher": "yuzhi",
   "description": "Read and write Modbus TCP registers on PLCs, gateways and remote IO couplers. Connects to the host and port you enter (502 by default).",
   "icon": "assets/plugin.svg",

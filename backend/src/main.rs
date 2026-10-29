@@ -16,10 +16,21 @@ use dbx_plugin_sdk::{
 };
 use serde_json::{json, Value};
 
-use modbus::{area_function_codes, decode_registers, encode_value, register_count, ModbusSession};
+use modbus::{area_function_codes, decode_registers, encode_value, register_count, ModbusSession, WireFrame};
 
 const PLUGIN_ID: &str = "io.github.yuzhi.modbus";
 const PLUGIN_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Serialises the frames captured during one exchange so the workbench can show
+/// them verbatim in its communication view.
+fn frames_json(frames: &[WireFrame]) -> Value {
+    Value::Array(
+        frames
+            .iter()
+            .map(|frame| json!({ "dir": frame.dir, "hex": frame.hex() }))
+            .collect(),
+    )
+}
 
 /// Maximum number of read tasks accepted in a single `modbus/read` call.
 const MAX_READ_TASKS: usize = 64;
@@ -312,6 +323,22 @@ fn modbus_defaults(connection: &Value) -> ModbusDefaults {
 // ---------------------------------------------------------------------------
 
 fn read_task(session: &ModbusSession, task: &Value, defaults: &ModbusDefaults) -> Value {
+    // Every result carries the wire frames the exchange produced, so the
+    // workbench's communication view shows exactly what backed each value.
+    let mut frames: Vec<WireFrame> = Vec::new();
+    let mut result = read_task_inner(session, task, defaults, &mut frames);
+    if let Some(object) = result.as_object_mut() {
+        object.insert("frames".to_string(), frames_json(&frames));
+    }
+    result
+}
+
+fn read_task_inner(
+    session: &ModbusSession,
+    task: &Value,
+    defaults: &ModbusDefaults,
+    frames: &mut Vec<WireFrame>,
+) -> Value {
     let (default_byte_order, default_word_order, default_unit) = defaults;
     let unit_id = task
         .get("unitId")
@@ -342,7 +369,7 @@ fn read_task(session: &ModbusSession, task: &Value, defaults: &ModbusDefaults) -
                 .and_then(Value::as_u64)
                 .unwrap_or(1)
                 .clamp(1, 2000) as u16;
-            match session.read_bits(unit_id, read_code, address, quantity) {
+            match session.read_bits(unit_id, read_code, address, quantity, frames) {
                 Ok(bits) => json!({
                     "ok": true,
                     "unitId": unit_id,
@@ -362,7 +389,7 @@ fn read_task(session: &ModbusSession, task: &Value, defaults: &ModbusDefaults) -
                 Some(value) => value.clamp(1, 2000),
                 None => register_count(data_type).unwrap_or(1) as u64,
             } as u16;
-            match session.read_registers_chunked(unit_id, read_code, address, quantity) {
+            match session.read_registers_chunked(unit_id, read_code, address, quantity, frames) {
                 Ok(registers) => {
                     let value = decode_registers(&registers, data_type, byte_order, word_order).ok();
                     json!({
@@ -386,6 +413,20 @@ fn read_task(session: &ModbusSession, task: &Value, defaults: &ModbusDefaults) -
 }
 
 fn write_task(session: &ModbusSession, task: &Value, defaults: &ModbusDefaults) -> Value {
+    let mut frames: Vec<WireFrame> = Vec::new();
+    let mut result = write_task_inner(session, task, defaults, &mut frames);
+    if let Some(object) = result.as_object_mut() {
+        object.insert("frames".to_string(), frames_json(&frames));
+    }
+    result
+}
+
+fn write_task_inner(
+    session: &ModbusSession,
+    task: &Value,
+    defaults: &ModbusDefaults,
+    frames: &mut Vec<WireFrame>,
+) -> Value {
     let (default_byte_order, default_word_order, default_unit) = defaults;
     let unit_id = task
         .get("unitId")
@@ -404,9 +445,11 @@ fn write_task(session: &ModbusSession, task: &Value, defaults: &ModbusDefaults) 
         .unwrap_or(default_word_order);
 
     match area_function_codes(area) {
-        Ok((modbus::FC_READ_COILS, _)) => write_coils(session, task, unit_id, address, area),
+        Ok((modbus::FC_READ_COILS, _)) => {
+            write_coils(session, task, unit_id, address, area, frames)
+        }
         Ok((modbus::FC_READ_HOLDING_REGISTERS, _)) => {
-            write_registers(session, task, unit_id, address, area, byte_order, word_order)
+            write_registers(session, task, unit_id, address, area, byte_order, word_order, frames)
         }
         Ok(_) => json!({
             "ok": false,
@@ -422,6 +465,7 @@ fn write_coils(
     unit_id: u8,
     address: u16,
     area: &str,
+    frames: &mut Vec<WireFrame>,
 ) -> Value {
     let result = if let Some(values) = task.get("values").and_then(Value::as_array) {
         let bits: Result<Vec<bool>, String> = values
@@ -434,13 +478,13 @@ fn write_coils(
             .collect();
         match bits {
             Ok(bits) => session
-                .write_multiple_coils(unit_id, address, &bits)
+                .write_multiple_coils(unit_id, address, &bits, frames)
                 .map(|_| bits.len()),
             Err(error) => return json!({ "ok": false, "error": error }),
         }
     } else if let Some(value) = task.get("value").and_then(Value::as_bool) {
         session
-            .write_single_coil(unit_id, address, value)
+            .write_single_coil(unit_id, address, value, frames)
             .map(|_| 1usize)
     } else {
         return json!({ "ok": false, "error": "a coil write needs value or values" });
@@ -466,6 +510,7 @@ fn write_registers(
     area: &str,
     byte_order: &str,
     word_order: &str,
+    frames: &mut Vec<WireFrame>,
 ) -> Value {
     // `raw: true` writes the values array as literal 16-bit registers, which is
     // what the register table in the workbench uses. Otherwise every value is
@@ -518,11 +563,11 @@ fn write_registers(
 
     let result = if registers.len() == 1 {
         session
-            .write_single_register(unit_id, address, registers[0])
+            .write_single_register(unit_id, address, registers[0], frames)
             .map(|_| 1usize)
     } else {
         session
-            .write_multiple_registers(unit_id, address, &registers)
+            .write_multiple_registers(unit_id, address, &registers, frames)
             .map(|_| registers.len())
     };
 

@@ -312,17 +312,11 @@
         margin-left: auto; font-family: var(--dbx-mono); font-size: 12px; font-weight: 600;
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
-      .range-block-head .rb-pager { display: flex; align-items: center; gap: 1px; flex: none; }
-      .range-block-head .rb-pager button { width: 22px; height: 22px; padding: 0; font-size: 12px; }
-      .range-block-head .rb-pager .page-info {
-        min-width: 40px; text-align: center; font-family: var(--dbx-mono);
-        font-size: 11px; color: var(--dbx-muted-fg);
-      }
       .range-block .rb-error {
         padding: 6px 12px; font-size: 11.5px; color: var(--dbx-destructive);
         background: color-mix(in srgb, var(--dbx-destructive) 8%, transparent);
       }
-      .range-block .value-grid { padding: 8px 10px 14px; }
+      .range-block table.poll { margin: 8px 10px 14px; }
 
       .table-wrap { flex: 1; min-height: 0; overflow: auto; }
       table { border-collapse: separate; border-spacing: 0; width: 100%; }
@@ -342,68 +336,50 @@
       td.val { font-family: var(--dbx-mono); font-variant-numeric: tabular-nums; font-size: 12.5px; }
       td.note { color: var(--dbx-muted-fg); font-size: 11.5px; }
 
-      /* ------------------------------------------------- address/value grid */
-      /* One cell per address, laid out in as many columns as the configuration
-         asks for, so a wide window shows several registers per row instead of
-         one long list. */
+      /* ------------------------------------------------- poll table */
+      /* Modbus Poll layout: the row address is the leftmost column, the header
+         names each column's base address, and the cell→address mapping is
+         fixed by (start, quantity, rows) alone — columns = quantity / rows.
+         No paging: the whole range scrolls, so an address never moves. */
       .grid-wrap { flex: 1; min-height: 0; overflow: auto; }
-      .value-grid {
-        display: grid;
-        grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr));
-        gap: 5px; padding: 10px 12px 18px; align-content: start;
+      table.poll {
+        border-collapse: separate; border-spacing: 0;
+        margin: 10px 12px 18px;
+        font-variant-numeric: tabular-nums;
+        /* Shrink to the cells. The generic `table` rule stretches a table to
+           the pane, which here would spread a handful of values across the
+           full width; a poll sheet is compact and the pane scrolls instead. */
+        width: auto;
       }
-      .av {
-        display: flex; align-items: baseline; gap: 7px;
-        min-width: 0; padding: 4px 8px;
-        border: 1px solid color-mix(in srgb, var(--dbx-border) 70%, transparent);
-        border-radius: var(--dbx-radius);
-        background: var(--dbx-card);
+      .poll th, .poll td {
+        border-right: 1px solid color-mix(in srgb, var(--dbx-border) 70%, transparent);
+        border-bottom: 1px solid color-mix(in srgb, var(--dbx-border) 70%, transparent);
+        padding: 0 7px; height: 26px;
+        white-space: nowrap; vertical-align: middle;
       }
-      .av:hover {
+      .poll th:first-child, .poll td:first-child { border-left: 1px solid color-mix(in srgb, var(--dbx-border) 70%, transparent); }
+      .poll thead th {
+        position: sticky; top: 0; z-index: 2;
         background: var(--dbx-muted);
-        border-color: var(--dbx-border);
+        font-family: var(--dbx-mono); font-size: 10.5px; font-weight: 600;
+        color: var(--dbx-muted-fg); text-align: right;
       }
-      .av .a {
-        flex: none; font-family: var(--dbx-mono); font-size: 11px;
-        color: var(--dbx-muted-fg); font-variant-numeric: tabular-nums;
+      /* Every cell carries its own address: address on the left, value on the
+         right. A column's base address alone does not name the values below
+         it, so the sheet stays readable without counting offsets. */
+      .poll td.val {
+        font-family: var(--dbx-mono); font-size: 12.5px;
+        text-align: right; min-width: 58px;
       }
-      /* Inside a cell the value sits next to its address, while the hex is
-         right-aligned in a fixed gutter so it lines up down the grid. */
-      .av .cell-value {
-        margin: 0 0 0 2px; padding: 1px 4px; flex: none;
-        font-family: var(--dbx-mono); font-size: 12.5px; font-weight: 500;
-        font-variant-numeric: tabular-nums;
+      .poll td.val .cell-addr {
+        display: inline-block; min-width: 36px; margin-right: 8px;
+        font-size: 10.5px; color: var(--dbx-muted-fg); text-align: right;
       }
-      .av .cell-value.muted { color: var(--dbx-muted-fg); font-weight: 400; }
-      .av .r {
-        margin-left: auto; min-width: 50px; text-align: right;
-        flex: none; font-family: var(--dbx-mono); font-size: 10px;
-        color: var(--dbx-muted-fg); font-variant-numeric: tabular-nums;
-        overflow: hidden; text-overflow: ellipsis;
-      }
-      /* Inline editor: the cell value becomes an input in place, so a write
-         needs no dialog. The holder grows to host the field while editing. */
-      .av .cell-value.editing { flex: 1 1 auto; min-width: 76px; padding: 0; }
-      .av .cell-value input.cell-edit {
-        width: 100%; box-sizing: border-box;
-        font-family: var(--dbx-mono); font-size: 12.5px; font-weight: 500;
-        padding: 1px 4px; border: 1px solid var(--dbx-ring); border-radius: var(--dbx-radius);
-        background: var(--dbx-bg); color: var(--dbx-fg);
-        font-variant-numeric: tabular-nums;
-      }
-      .av .cell-value input.cell-edit:focus { outline: none; border-color: var(--dbx-primary); }
+      .poll tbody tr:hover td.val { background: color-mix(in srgb, var(--dbx-primary) 6%, transparent); }
 
-      /* Paging controls, shown only when a range does not fit on one page. */
-      .pager { display: flex; align-items: center; gap: 1px; flex: none; }
-      .pager button { width: 24px; height: 24px; padding: 0; font-size: 13px; }
-      .pager .page-info {
-        min-width: 46px; text-align: center;
-        font-family: var(--dbx-mono); font-size: 11.5px;
-        font-variant-numeric: tabular-nums; color: var(--dbx-muted-fg);
-      }
-
-      /* How many cells per row and per page. These are view controls, so they
-         live beside the data rather than buried in the configuration form. */
+      /* How many rows the table shows; columns follow as quantity / rows, the
+         way Modbus Poll derives them. A view control, so it lives beside the
+         data rather than buried in the configuration form. */
       .view-controls {
         display: flex; align-items: center; gap: 6px; flex: none;
         padding-left: 10px; border-left: var(--dbx-line);
@@ -420,9 +396,9 @@
       /* The value is the only editable thing in a row, so it is the only thing
          that reacts to the pointer. */
       .cell-value {
-        display: inline-block; min-width: 44px;
-        padding: 1px 6px; margin: 0 -6px;
-        border-radius: 4px; cursor: pointer;
+        display: inline-block; min-width: 34px;
+        padding: 1px 4px; margin: 0 -4px;
+        border-radius: 4px; cursor: pointer; text-align: right;
       }
       .cell-value:hover {
         background: color-mix(in srgb, var(--dbx-primary) 12%, transparent);
@@ -430,6 +406,18 @@
       }
       .cell-value.readonly { cursor: default; }
       .cell-value.readonly:hover { background: transparent; box-shadow: none; }
+      .cell-value.muted { color: var(--dbx-muted-fg); }
+      /* Inline editor: the cell value becomes an input in place, so a write
+         needs no dialog. */
+      .cell-value.editing { min-width: 62px; padding: 0; }
+      .cell-value input.cell-edit {
+        width: 100%; box-sizing: border-box;
+        font-family: var(--dbx-mono); font-size: 12.5px;
+        padding: 1px 4px; border: 1px solid var(--dbx-ring); border-radius: var(--dbx-radius);
+        background: var(--dbx-bg); color: var(--dbx-fg);
+        font-variant-numeric: tabular-nums;
+      }
+      .cell-value input.cell-edit:focus { outline: none; border-color: var(--dbx-primary); }
 
       /* Bits read as a state, not a number: dot plus label. */
       .bit { display: inline-flex; align-items: center; gap: 6px; }
@@ -486,6 +474,18 @@
         font-family: var(--dbx-mono); font-size: 11px; color: var(--dbx-muted-fg);
       }
       .log-head button { height: 22px; padding: 0 8px; font-size: 11.5px; }
+      /* Two views over one drawer: the read log and the raw wire frames. */
+      .log-tabs { display: flex; gap: 2px; }
+      .log-tabs button {
+        height: 22px; padding: 0 10px; font-size: 11px;
+        background: transparent; border-color: transparent;
+        color: var(--dbx-muted-fg);
+      }
+      .log-tabs button:hover:not([aria-selected="true"]) { background: var(--dbx-card); }
+      .log-tabs button[aria-selected="true"] {
+        background: var(--dbx-card); color: var(--dbx-fg);
+        border: var(--dbx-line); font-weight: 500;
+      }
       .log-rows { overflow: auto; }
       .log-row {
         display: grid;
@@ -493,6 +493,10 @@
         gap: 10px; align-items: baseline;
         padding: 4px 14px; font-size: 11.5px;
         border-bottom: 1px solid color-mix(in srgb, var(--dbx-border) 45%, transparent);
+      }
+      /* One captured frame: when, which direction, what it meant, the bytes. */
+      .log-row.frame-row {
+        grid-template-columns: 68px 40px minmax(110px, 170px) 1fr;
       }
       .log-row:hover { background: var(--dbx-muted); }
       .log-row .t, .log-row .d {
@@ -512,6 +516,17 @@
       }
       .log-row.failed .msg { color: var(--dbx-destructive); }
       .log-row .cnt { color: var(--dbx-muted-fg); font-size: 10.5px; }
+      .log-row .dir {
+        font-family: var(--dbx-mono); font-size: 10.5px; font-weight: 700;
+        letter-spacing: .04em;
+      }
+      .log-row .dir.tx { color: var(--dbx-primary); }
+      .log-row .dir.rx { color: var(--dbx-success); }
+      .log-row .hex {
+        font-family: var(--dbx-mono); font-size: 11px; line-height: 1.6;
+        white-space: normal; word-break: break-all;
+        font-variant-numeric: tabular-nums;
+      }
       .log-empty { padding: 18px 14px; color: var(--dbx-muted-fg); font-size: 12px; }
       .hint {
         flex: none; padding: 7px 12px; font-size: 11.5px; line-height: 1.5;
@@ -620,7 +635,7 @@
           decoded: "Decoded", addresses: "Addresses and values", items: "items",
           groupAddress: "Address", groupFormat: "Interpretation", groupRead: "Reading",
           nameLabel: "Name", on: "ON", off: "OFF",
-          columns: "Columns", rows: "Rows",
+          rows: "Rows", rowsHint: "Rows on screen; columns follow as values / rows, exactly like Modbus Poll.",
           prevPage: "Previous page", nextPage: "Next page",
           mergeView: "Merge", singleView: "Single", mergeHint: "Show all ranges of this device together",
           selectRange: "Show in single view",
@@ -646,6 +661,10 @@
           logButton: "Log", logTitle: "Read log", logEmpty: "No reads yet.",
           logClear: "Clear", logClose: "Close log", logCount: "entries",
           logOk: "ok", logFailed: "failed",
+          tabLog: "Read log", tabFrames: "Frames",
+          framesButton: "Frames", framesTitle: "Communication frames",
+          framesEmpty: "No frames captured yet. Every read and write shows its exact TX/RX bytes here.",
+          frameTx: "TX", frameRx: "RX",
           holding: "Holding", input: "Input", coil: "Coil", discrete: "Discrete",
           readOnlyArea: "read-only"
         },
@@ -672,7 +691,7 @@
           decoded: "解析值", addresses: "地址与值", items: "项",
           groupAddress: "地址", groupFormat: "解析方式", groupRead: "读取",
           nameLabel: "名称", on: "ON", off: "OFF",
-          columns: "列数", rows: "行数",
+          rows: "行数", rowsHint: "屏幕上的行数；列数 = 值数量 ÷ 行数，与 Modbus Poll 的分配方式一致。",
           prevPage: "上一页", nextPage: "下一页",
           mergeView: "合并", singleView: "单页", mergeHint: "把该设备的所有范围一起显示",
           selectRange: "在单页中查看",
@@ -696,6 +715,10 @@
           logButton: "日志", logTitle: "读取日志", logEmpty: "还没有读取记录。",
           logClear: "清空", logClose: "关闭日志", logCount: "条",
           logOk: "成功", logFailed: "失败",
+          tabLog: "读取日志", tabFrames: "通信报文",
+          framesButton: "报文", framesTitle: "通信报文",
+          framesEmpty: "还没有捕获到报文。每次读写收发的原始字节都会在这里显示。",
+          frameTx: "TX", frameRx: "RX",
           holding: "保持寄存器", input: "输入寄存器", coil: "线圈", discrete: "离散输入",
           readOnlyArea: "只读"
         }
@@ -1017,18 +1040,16 @@
         deviceId: "", area: "holding", start: 0, quantity: 10,
         dataType: "uint16", byteOrder: "ABCD", wordOrder: "big",
         format: "unsigned", intervalMs: 1000, name: "",
-        // How the values are laid out. Columns × rows is one page; a range
-        // larger than that is paged rather than scrolled, so the same number of
-        // values is always visible while polling. (A value may span several
-        // registers depending on its data type.) Five columns divide the ten
-        // default addresses into two full rows, and the page still has room for
-        // forty values before paging kicks in.
-        columns: 5, rows: 8
+        // Like Modbus Poll: `rows` is the only layout setting. Columns follow
+        // as quantity / rows, so value index i always lands at address
+        // start + i·registers(value) — no paging, no remapping, the same
+        // address can never move under the cursor. Ten rows matches the
+        // Modbus Poll default view (0–9 down the first column).
+        rows: 10
       };
-      // `page` is deliberately absent — where you are looking is not a setting.
+      // `page` is retired and kept only so old persisted scopes load cleanly.
       const SCOPE_KEYS = ["id", ...Object.keys(SCOPE_DEFAULTS)];
-      const MAX_COLUMNS = 6;
-      const MAX_ROWS = 50;
+      const MAX_ROWS = 250;
 
       function newId() {
         return Math.random().toString(36).slice(2, 10);
@@ -1045,7 +1066,7 @@
       }
 
       function newScope(patch) {
-        return { id: newId(), result: null, page: 0, ...SCOPE_DEFAULTS, ...(patch || {}) };
+        return { id: newId(), result: null, ...SCOPE_DEFAULTS, ...(patch || {}) };
       }
 
       function deviceLabel(device) {
@@ -1069,15 +1090,6 @@
         const rc = isBitArea(scope.area) ? 1 : registerCount(scope.dataType);
         const end = scope.start + Math.max(1, scope.quantity) * rc - 1;
         return `${t[scope.area] || scope.area} ${scope.start} – ${end}`;
-      }
-
-      /** Cells one page can hold. */
-      function pageCapacity(scope) {
-        return Math.max(1, Number(scope.columns) || 1) * Math.max(1, Number(scope.rows) || 1);
-      }
-
-      function pageCount(scope) {
-        return Math.max(1, Math.ceil(Math.max(1, scope.quantity) / pageCapacity(scope)));
       }
 
       // A device that answered with a Modbus exception is still a device that
@@ -1105,8 +1117,9 @@
           // of dropped, so the newest settings are always what lands on screen.
           readQueued: false,
           mergeView: false,
-          // Read history is diagnostic, so it lives in memory only.
-          log: [], logOpen: false
+          // Read history and captured wire frames are diagnostic, so both live
+          // in memory only.
+          log: [], frames: [], logOpen: false, logTab: "log"
         };
 
         const active = () => state.scopes.find((scope) => scope.id === state.activeId) || state.scopes[0];
@@ -1125,9 +1138,13 @@
         const pollButton = el("button", { text: t.poll, onclick: () => togglePolling() });
         const logButton = el("button", {
           text: t.logButton, title: t.logTitle,
-          "aria-pressed": "false", onclick: () => toggleLog()
+          "aria-pressed": "false", onclick: () => toggleLog("log")
         });
-        document.querySelector("#appbar-extra").append(logButton, counters, readButton, pollButton);
+        const framesButton = el("button", {
+          text: t.framesButton, title: t.framesTitle,
+          "aria-pressed": "false", onclick: () => toggleLog("frames")
+        });
+        document.querySelector("#appbar-extra").append(logButton, framesButton, counters, readButton, pollButton);
 
         // ---- sidebar: two tabs over one panel -------------------------------
         const deviceTab = el("button", { class: "tab", text: t.tabDevices, onclick: () => setTab("devices") });
@@ -1145,8 +1162,7 @@
         const sidebar = el("aside", { class: "sidebar" }, [sidebarHead, deviceList, scopeList, configForm]);
 
         // ---- content: only addresses and values -----------------------------
-        const valueGrid = el("div", { class: "value-grid" });
-        const gridWrap = el("div", { class: "grid-wrap" }, [valueGrid]);
+        const gridWrap = el("div", { class: "grid-wrap" });
         const errorBar = el("div", { class: "error-bar", style: "display:none" });
 
         // First run: no device has an address yet, so there is nothing to read.
@@ -1170,25 +1186,12 @@
         }
 
         const rangeLabel = el("span", { class: "count" });
-        const pageInfo = el("span", { class: "page-info" });
-        const prevButton = el("button", {
-          class: "icon ghost", text: "‹", title: t.prevPage, onclick: () => turnPage(-1)
-        });
-        const nextButton = el("button", {
-          class: "icon ghost", text: "›", title: t.nextPage, onclick: () => turnPage(1)
-        });
-        const pager = el("div", { class: "pager" }, [prevButton, pageInfo, nextButton]);
 
-        const columnsInput = el("input", {
-          type: "number", min: "1", max: String(MAX_COLUMNS), title: t.columns,
-          onchange: (event) => setLayout("columns", event.target.value, 1, MAX_COLUMNS, event.target)
-        });
         const rowsInput = el("input", {
-          type: "number", min: "1", max: String(MAX_ROWS), title: t.rows,
+          type: "number", min: "1", max: String(MAX_ROWS), title: t.rowsHint,
           onchange: (event) => setLayout("rows", event.target.value, 1, MAX_ROWS, event.target)
         });
         const viewControls = el("div", { class: "view-controls" }, [
-          el("label", {}, [el("span", { text: t.columns }), columnsInput]),
           el("label", {}, [el("span", { text: t.rows }), rowsInput])
         ]);
 
@@ -1207,23 +1210,35 @@
           el("div", { class: "content-title" }, [el("h2", { text: t.addresses }), rangeLabel]),
           el("span", { class: "spacer" }),
           viewControls,
-          pager,
           decodedBox,
           mergeButton
         ]);
 
         const footnote = el("div", { class: "hint", text: t.writeHint });
 
-        // ---- read log -------------------------------------------------------
+        // ---- read log / communication frames -------------------------------
         const logCount = el("span", { class: "count" });
         const logRows = el("div", { class: "log-rows" });
+        const logTabButton = el("button", {
+          text: t.tabLog, "aria-selected": "true", onclick: () => setLogTab("log")
+        });
+        const framesTabButton = el("button", {
+          text: t.tabFrames, "aria-selected": "false", onclick: () => setLogTab("frames")
+        });
         const logPanel = el("div", { class: "log-panel", style: "display:none" }, [
           el("div", { class: "log-head" }, [
-            el("span", { class: "title", text: t.logTitle }),
+            el("div", { class: "log-tabs", role: "tablist" }, [logTabButton, framesTabButton]),
             logCount,
             el("span", { class: "spacer" }),
-            el("button", { text: t.logClear, onclick: () => { state.log = []; renderLog(); } }),
-            el("button", { class: "icon ghost", text: "✕", title: t.logClose, onclick: () => toggleLog(false) })
+            el("button", {
+              text: t.logClear,
+              onclick: () => {
+                if (state.logTab === "log") state.log = [];
+                else state.frames = [];
+                renderDrawer();
+              }
+            }),
+            el("button", { class: "icon ghost", text: "✕", title: t.logClose, onclick: () => toggleLog(null, false) })
           ]),
           logRows
         ]);
@@ -1236,12 +1251,12 @@
         root.appendChild(createSplitter(root, sidebar, content));
         root.appendChild(content);
 
-        // Each scope keeps its own cell cache so several grids can coexist in
-        // the merged view. A null / rebuilt container invalidates its cache.
+        // Each scope keeps its own table cache so several tables can coexist in
+        // the merged view. A null / rebuilt table invalidates its cache.
         const cellCache = new Map();
         function scopeCache(scope) {
           let cache = cellCache.get(scope.id);
-          if (!cache) { cache = { key: "", cells: [], rc: 1 }; cellCache.set(scope.id, cache); }
+          if (!cache) { cache = { key: "", table: null, records: [] }; cellCache.set(scope.id, cache); }
           return cache;
         }
         // Filled by renderDeviceForm so status updates can refresh the form
@@ -1418,7 +1433,7 @@
           if (state.activeId) {
             readActive();
           } else {
-            valueGrid.textContent = "";
+            gridWrap.textContent = "";
             rangeLabel.textContent = "";
             errorBar.style.display = "none";
             footnote.textContent = t.emptyTable;
@@ -1741,7 +1756,6 @@
                 wordOrder: current.wordOrder,
                 format: current.format,
                 intervalMs: current.intervalMs,
-                columns: current.columns,
                 rows: current.rows
               }
             : { deviceId: device ? device.id : (state.devices[0]?.id || "") };
@@ -1921,7 +1935,6 @@
           const scope = active();
           if (scope) {
             scope.result = null;
-            scope.page = 0;
           }
           persistScopes();
           renderScopeList();
@@ -1989,6 +2002,7 @@
             }, 20000);
             const result = (response.results || [])[0] || { ok: false, error: "no result" };
             const durationMs = Date.now() - started;
+            captureFrames(result.frames, device);
             if (result.ok === false) {
               state.err += 1;
               scope.result = { registers: [], values: [], error: result.error || "error", at: new Date() };
@@ -2088,14 +2102,64 @@
           sErr.set(String(state.err), state.err ? "bad" : null);
         }
 
-        // ---- read log -------------------------------------------------------
+        // ---- read log / communication frames -------------------------------
         const LOG_LIMIT = 200;
+        const FRAMES_LIMIT = 400;
 
-        function toggleLog(force) {
-          state.logOpen = force === undefined ? !state.logOpen : Boolean(force);
+        /** Opens the drawer on `tab`, or toggles it when already there. */
+        function toggleLog(tab, force) {
+          if (tab && state.logOpen && state.logTab === tab) {
+            state.logOpen = force === undefined ? false : Boolean(force);
+          } else {
+            if (tab) state.logTab = tab;
+            state.logOpen = force === undefined ? true : Boolean(force);
+          }
           logPanel.style.display = state.logOpen ? "" : "none";
-          logButton.setAttribute("aria-pressed", String(state.logOpen));
-          if (state.logOpen) renderLog();
+          logButton.setAttribute("aria-pressed", String(state.logOpen && state.logTab === "log"));
+          framesButton.setAttribute("aria-pressed", String(state.logOpen && state.logTab === "frames"));
+          if (state.logOpen) renderDrawer();
+        }
+
+        function setLogTab(tab) {
+          state.logTab = tab;
+          logTabButton.setAttribute("aria-selected", String(tab === "log"));
+          framesTabButton.setAttribute("aria-selected", String(tab === "frames"));
+          logButton.setAttribute("aria-pressed", String(state.logOpen && tab === "log"));
+          framesButton.setAttribute("aria-pressed", String(state.logOpen && tab === "frames"));
+          renderDrawer();
+        }
+
+        /** Stores the frames one read/write captured, newest first. */
+        function captureFrames(frames, device) {
+          if (!Array.isArray(frames)) return;
+          const who = deviceLabel(device);
+          for (const frame of frames) {
+            if (!frame || typeof frame.hex !== "string") continue;
+            state.frames.unshift({
+              at: new Date(),
+              dir: frame.dir === "rx" ? "rx" : "tx",
+              hex: frame.hex,
+              device: who,
+              summary: summarizeFrame(frame.hex)
+            });
+          }
+          if (state.frames.length > FRAMES_LIMIT) state.frames.length = FRAMES_LIMIT;
+          if (state.logOpen && state.logTab === "frames") renderFrames();
+        }
+
+        /** Decodes the MBAP header for the summary column: slave, function,
+            and — when the device rejected the request — the exception code. */
+        function summarizeFrame(hex) {
+          const bytes = hex.trim().split(/\s+/);
+          if (bytes.length < 8) return "";
+          const unit = parseInt(bytes[6], 16);
+          let fn = parseInt(bytes[7], 16);
+          if (Number.isNaN(unit) || Number.isNaN(fn)) return "";
+          if (fn & 0x80) {
+            const code = parseInt(bytes[8] || "", 16);
+            return `unit ${unit} · FC ${fn & 0x7f} · EXC ${Number.isNaN(code) ? "?" : code}`;
+          }
+          return `unit ${unit} · FC ${fn}`;
         }
 
         /**
@@ -2124,12 +2188,17 @@
             state.log.unshift(entry);
             if (state.log.length > LOG_LIMIT) state.log.length = LOG_LIMIT;
           }
-          renderLog();
+          if (state.logOpen && state.logTab === "log") renderLog();
         }
 
         function timeOf(date) {
           const pad = (value) => String(value).padStart(2, "0");
           return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+        }
+
+        function renderDrawer() {
+          if (state.logTab === "log") renderLog();
+          else renderFrames();
         }
 
         function renderLog() {
@@ -2138,7 +2207,7 @@
             ? `${t.logButton} ${state.log.length}`
             : t.logButton;
           // The rows are only worth building while the drawer is open.
-          if (!state.logOpen) {
+          if (!state.logOpen || state.logTab !== "log") {
             logRows.textContent = "";
             return;
           }
@@ -2168,33 +2237,42 @@
           }
         }
 
-        // ---- paging ---------------------------------------------------------
-        function turnPage(delta) {
-          const scope = active();
-          if (!scope) return;
-          const pages = pageCount(scope);
-          if (pages <= 1) return;
-          scope.page = (Math.min(pages - 1, Math.max(0, (scope.page || 0) + delta)));
-          renderGrid(true);
+        function renderFrames() {
+          logCount.textContent = state.frames.length ? `${state.frames.length} ${t.logCount}` : "";
+          framesButton.textContent = state.frames.length
+            ? `${t.framesButton} ${state.frames.length}`
+            : t.framesButton;
+          if (!state.logOpen || state.logTab !== "frames") {
+            logRows.textContent = "";
+            return;
+          }
+          logRows.textContent = "";
+          if (!state.frames.length) {
+            logRows.appendChild(el("div", { class: "log-empty", text: t.framesEmpty }));
+            return;
+          }
+          for (const frame of state.frames) {
+            const row = el("div", { class: "log-row frame-row", title: frame.hex });
+            row.appendChild(el("span", { class: "t", text: timeOf(frame.at) }));
+            row.appendChild(el("span", {
+              class: "dir " + frame.dir,
+              text: frame.dir === "rx" ? t.frameRx : t.frameTx
+            }));
+            row.appendChild(el("span", { class: "rng", text: frame.summary }));
+            row.appendChild(el("span", { class: "hex", text: frame.hex }));
+            logRows.appendChild(row);
+          }
         }
 
-        /** Paging for a specific range, used by the merged view's per-block controls. */
-        function turnPageScope(scope, delta) {
-          if (!scope) return;
-          const pages = pageCount(scope);
-          if (pages <= 1) return;
-          scope.page = (Math.min(pages - 1, Math.max(0, (scope.page || 0) + delta)));
-          renderGrid(true);
-        }
-
-        /** Columns and rows are display-only, so they never trigger a read. */
+        // ---- layout ---------------------------------------------------------
+        /** Rows are display-only, so they never trigger a read. Columns follow
+            as quantity / rows, and the address of every cell stays fixed. */
         function setLayout(key, raw, min, max, input) {
           const scope = active();
           if (!scope) return;
           const value = Math.max(min, Math.min(max, Number(raw) || min));
           scope[key] = value;
           if (input) input.value = String(value);
-          scope.page = 0;
           persistScopes();
           renderGrid(true);
           syncLayoutInputs();
@@ -2203,15 +2281,13 @@
         function syncLayoutInputs() {
           const scope = active();
           if (!scope) return;
-          columnsInput.value = String(scope.columns);
           rowsInput.value = String(scope.rows);
         }
 
-        // ---- the address/value grid -----------------------------------------
+        // ---- the poll table --------------------------------------------------
         // The workbench can show one range at a time (single view) or stack all
         // of the selected device's ranges into one scrollable page (merged
-        // view). Both share the same per-range cell builder; only the container
-        // and the top header differ.
+        // view). Both share the same table builder; only the container differs.
         function renderGrid(force) {
           // Never repaint while a cell is being edited inline: the polling
           // timer would otherwise tear the input out from under the user.
@@ -2224,9 +2300,18 @@
         }
 
         function renderSingle(force) {
+          const scope = active();
+          if (!scope) return;
+          const cache = scopeCache(scope);
+          // Same layout and same DOM: refresh the cells in place so polling
+          // never rebuilds the table the user is looking at.
+          if (!force && cache.table && cache.table.isConnected
+              && cache.key === tableKey(scope)) {
+            updateCells(scope);
+            return;
+          }
           gridWrap.textContent = "";
-          gridWrap.appendChild(valueGrid);
-          renderScopeGrid(valueGrid, active(), force);
+          buildScopeTable(gridWrap, scope);
         }
 
         function renderMerged(force) {
@@ -2261,116 +2346,99 @@
                 }));
               }
             }
-            const pages = pageCount(scope);
-            if (pages > 1) {
-              const pageInfo = el("span", { class: "page-info", text: `${scope.page + 1} / ${pages}` });
-              const prev = el("button", {
-                class: "icon ghost", text: "‹", title: t.prevPage,
-                onclick: (event) => { event.stopPropagation(); turnPageScope(scope, -1); }
-              });
-              const next = el("button", {
-                class: "icon ghost", text: "›", title: t.nextPage,
-                onclick: (event) => { event.stopPropagation(); turnPageScope(scope, 1); }
-              });
-              head.appendChild(el("div", { class: "rb-pager" }, [prev, pageInfo, next]));
-            }
             head.addEventListener("click", () => selectScope(scope));
             block.appendChild(head);
             if (scope.result && scope.result.error) {
               block.appendChild(el("div", { class: "rb-error", text: scope.result.error }));
             }
-            const grid = el("div", { class: "value-grid" });
-            block.appendChild(grid);
+            buildScopeTable(block, scope);
             gridWrap.appendChild(block);
-            // The block's grid is recreated every render, so drop the stale cache.
-            cellCache.delete(scope.id);
-            renderScopeGrid(grid, scope, true);
           }
         }
 
-        /** Builds the cells of one range into `gridEl`; owns that range's cache. */
-        function renderScopeGrid(gridEl, scope, force) {
+        /** What makes the table's shape change. Values update in place as long
+            as only this key changes. */
+        function tableKey(scope) {
           const bit = isBitArea(scope.area);
-          // How many registers one value occupies. Every cell and every address
-          // step is measured in these, so a uint32 grid covers twice the
-          // register space a uint16 grid of the same length would.
           const rc = bit ? 1 : registerCount(scope.dataType);
-          const capacity = pageCapacity(scope);
-          const total = Math.max(1, scope.quantity);
-          const pages = pageCount(scope);
-          scope.page = Math.min(pages - 1, Math.max(0, Number(scope.page) || 0));
-
-          const first = scope.page * capacity;
-          const shown = Math.min(capacity, total - first);
-          const key = `${scope.area}:${scope.start}:${total}:${bit ? "b" : "r"}:${scope.columns}:${scope.rows}:${scope.page}:${rc}`;
-
-          const cache = scopeCache(scope);
-          if (!force && cache.key === key && cache.cells.length === shown) {
-            updateCells(scope, first);
-            return;
-          }
-
-          gridEl.style.setProperty("--cols", String(Math.max(1, scope.columns)));
-          gridEl.textContent = "";
-          cache.key = key; cache.cells = []; cache.rc = rc;
-
-          for (let offset = 0; offset < shown; offset += 1) {
-            const index = first + offset;
-            const address = scope.start + index * rc;
-            const cell = el("div", { class: "av" });
-            cell.appendChild(el("span", { class: "a", text: formatAddress(address) }));
-
-            // The cache record is what the inline editor and `refreshCell` work
-            // on, so it has to exist before the double-click handler is bound —
-            // handing them the DOM node instead makes every write a no-op
-            // (the node has no `holder`, so the editor threw before it opened).
-            let record;
-            if (bit) {
-              const bitState = el("span", { class: "bit" });
-              bitState.appendChild(el("i"));
-              bitState.appendChild(el("span", { class: "txt" }));
-              const holder = el("span", { class: "cell-value" });
-              holder.appendChild(bitState);
-              cell.appendChild(holder);
-              const rawCell = el("span", { class: "r" });
-              cell.appendChild(rawCell);
-              record = { cell, holder, bit: bitState, rawCell, address };
-
-              if (scope.area === "coil") {
-                holder.title = `${formatAddress(address)} · ${t.writeHint}`;
-                holder.addEventListener("dblclick", () => beginInlineEdit(scope, record));
-              } else {
-                holder.classList.add("readonly");
-                holder.title = `${formatAddress(address)} · ${t.readOnlyArea}`;
-              }
-            } else {
-              const holder = el("span", { class: "cell-value v" });
-              cell.appendChild(holder);
-              const rawCell = el("span", { class: "r" });
-              cell.appendChild(rawCell);
-              record = { cell, holder, rawCell, address };
-
-              if (scope.area === "holding") {
-                holder.title = `${formatAddress(address)} · ${scope.dataType} · ${t.writeHint}`;
-                holder.addEventListener("dblclick", () => beginInlineEdit(scope, record));
-              } else {
-                holder.classList.add("readonly");
-                holder.title = `${formatAddress(address)} · ${t.readOnlyArea}`;
-              }
-            }
-            cache.cells.push(record);
-            gridEl.appendChild(cell);
-          }
-          updateCells(scope, first);
+          return `${scope.area}:${scope.start}:${Math.max(1, scope.quantity)}:${bit ? "b" : "r"}:${scope.rows}:${rc}`;
         }
 
-        /** Updates the top header (range label, pager, decoded, error, hint)
-         *  from the active range. In the merged view the per-range details live
-         *  inside each block, so the global ones are hidden. */
+        /**
+         * Builds the Modbus-Poll-style table of one range into `container`.
+         * The address mapping is fixed: value `i` lives at
+         * `start + i × registers(value)`, displayed at row `i % rows` of
+         * column `⌊i / rows⌋` — filling down each column exactly like Modbus
+         * Poll. No paging: the whole range scrolls, so an address is always
+         * found in the same cell. Each cell shows its address first and its
+         * value second, so no counting is needed to know what a number is.
+         */
+        function buildScopeTable(container, scope) {
+          const bit = isBitArea(scope.area);
+          const rc = bit ? 1 : registerCount(scope.dataType);
+          const rows = Math.max(1, Number(scope.rows) || 1);
+          const total = Math.max(1, scope.quantity);
+          const cols = Math.max(1, Math.ceil(total / rows));
+          const cache = scopeCache(scope);
+
+          const table = el("table", { class: "poll" });
+          const headRow = el("tr");
+          for (let col = 0; col < cols; col += 1) {
+            // The base address of each column, printed like Modbus Poll's
+            // "00000" header so the sheet reads like PLC documentation.
+            headRow.appendChild(el("th", { text: formatAddress(scope.start + col * rows * rc) }));
+          }
+          table.appendChild(el("thead")).appendChild(headRow);
+
+          const tbody = el("tbody");
+          const records = [];
+          for (let row = 0; row < rows; row += 1) {
+            const tr = el("tr");
+            for (let col = 0; col < cols; col += 1) {
+              const valueIndex = col * rows + row;
+              // The last row stops where the quantity stops.
+              if (valueIndex >= total) break;
+              const address = scope.start + valueIndex * rc;
+              const td = el("td", { class: "val" });
+              td.appendChild(el("span", { class: "cell-addr", text: formatAddress(address) }));
+              const holder = el("span", { class: "cell-value v" });
+              td.appendChild(holder);
+
+              const record = { holder, address, valueIndex, bit: null };
+              if (bit) {
+                const bitState = el("span", { class: "bit" });
+                bitState.appendChild(el("i"));
+                bitState.appendChild(el("span", { class: "txt" }));
+                holder.appendChild(bitState);
+                record.bit = bitState;
+              }
+              if (scope.area === "holding" || scope.area === "coil") {
+                holder.title = `${formatAddress(address)} · ${bit ? "" : scope.dataType + " · "}${t.writeHint}`;
+                holder.addEventListener("dblclick", () => beginInlineEdit(scope, record));
+              } else {
+                holder.classList.add("readonly");
+                holder.title = `${formatAddress(address)} · ${t.readOnlyArea}`;
+              }
+              records.push(record);
+              tr.appendChild(td);
+            }
+            tbody.appendChild(tr);
+          }
+          table.appendChild(tbody);
+          container.appendChild(table);
+
+          cache.key = tableKey(scope);
+          cache.table = table;
+          cache.records = records;
+          updateCells(scope);
+        }
+
+        /** Updates the top header (range label, decoded, error, hint) from the
+         *  active range. In the merged view the per-range details live inside
+         *  each block, so the global ones are hidden. */
         function syncGridHeader(scope) {
           if (!scope) {
             rangeLabel.textContent = "";
-            pager.style.display = "none";
             decodedBox.style.display = "none";
             errorBar.style.display = "none";
             footnote.textContent = "";
@@ -2379,20 +2447,9 @@
           const single = !state.mergeView;
           const bit = isBitArea(scope.area);
           const rc = bit ? 1 : registerCount(scope.dataType);
-          const capacity = pageCapacity(scope);
           const total = Math.max(1, scope.quantity);
-          const pages = pageCount(scope);
-          const first = scope.page * capacity;
-          const shown = Math.min(capacity, total - first);
-          const rangeStart = scope.start + first * rc;
-          const rangeEnd = rangeStart + shown * rc - 1;
-          const countText = pages > 1 ? `${shown} / ${total} ${t.items}` : `${total} ${t.items}`;
-          rangeLabel.textContent = `${formatAddress(rangeStart)} – ${formatAddress(rangeEnd)} · ${countText}`;
-
-          pager.style.display = (single && pages > 1) ? "" : "none";
-          pageInfo.textContent = pages > 1 ? `${scope.page + 1} / ${pages}` : "";
-          prevButton.disabled = scope.page <= 0;
-          nextButton.disabled = scope.page >= pages - 1;
+          const rangeEnd = scope.start + total * rc - 1;
+          rangeLabel.textContent = `${formatAddress(scope.start)} – ${formatAddress(rangeEnd)} · ${total} ${t.items}`;
 
           // A device that cannot be reached explains an empty grid better than
           // the last read error does, so it takes precedence.
@@ -2409,45 +2466,39 @@
           if (single) renderDecoded(scope);
         }
 
-        function updateCells(scope, first) {
+        function updateCells(scope) {
           const bit = isBitArea(scope.area);
           const rc = bit ? 1 : registerCount(scope.dataType);
           const result = scope.result;
           const cache = scopeCache(scope);
-          for (let offset = 0; offset < cache.cells.length; offset += 1) {
-            const cell = cache.cells[offset];
-            // Never overwrite the cell the user is editing inline.
-            if (cell.holder.classList.contains("editing")) continue;
-            const valueIndex = first + offset;
-            if (bit) {
-              const value = result && result.values ? result.values[valueIndex] : undefined;
-              cell.bit.className = "bit" + (value === undefined ? " unknown" : (value ? " on" : ""));
-              cell.bit.lastChild.textContent = value === undefined ? "—" : (value ? t.on : t.off);
-              cell.rawCell.textContent = value === undefined ? "" : (value ? "1" : "0");
-              cell.holder.classList.toggle("muted", value === undefined);
-            } else {
-              // Each cell owns `rc` registers; decode just that slice so a
-              // uint32/float32/uint64 grid shows one real value per cell.
-              const slice = result && result.registers
-                ? result.registers.slice(valueIndex * rc, valueIndex * rc + rc)
-                : [];
-              const decoded = slice.length >= rc
-                ? decodeRegistersClient(slice, scope.dataType, scope.byteOrder, scope.wordOrder)
-                : undefined;
-              cell.holder.classList.toggle("muted", decoded === undefined);
-              if (decoded === undefined) {
-                cell.holder.textContent = "—";
-                cell.rawCell.textContent = "";
-              } else if (rc === 1) {
-                // 16-bit types keep the legacy "Display" formatting on the main
-                // value, with the raw hex as the secondary readout.
-                cell.holder.textContent = formatRegister(decoded, scope.format);
-                cell.rawCell.textContent = formatRegister(decoded, "hex");
-              } else {
-                cell.holder.textContent = formatValue(decoded);
-                cell.rawCell.textContent = slice.map((word) => formatRegister(word, scope.format)).join(" ");
-              }
-            }
+          for (const record of cache.records) {
+            paintCell(scope, record, result, bit, rc);
+          }
+        }
+
+        /** Repaints one cached cell from the current read result. */
+        function paintCell(scope, record, result, bit, rc) {
+          // Never overwrite the cell the user is editing inline.
+          if (record.holder.classList.contains("editing")) return;
+          const index = record.valueIndex;
+          if (bit) {
+            const value = result && result.values ? result.values[index] : undefined;
+            record.bit.className = "bit" + (value === undefined ? " unknown" : (value ? " on" : ""));
+            record.bit.lastChild.textContent = value === undefined ? "—" : (value ? t.on : t.off);
+            record.holder.classList.toggle("muted", value === undefined);
+          } else {
+            // Each cell owns `rc` registers; decode just that slice so a
+            // uint32/float32/uint64 cell shows one real value.
+            const slice = result && result.registers
+              ? result.registers.slice(index * rc, index * rc + rc)
+              : [];
+            const decoded = slice.length >= rc
+              ? decodeRegistersClient(slice, scope.dataType, scope.byteOrder, scope.wordOrder)
+              : undefined;
+            record.holder.classList.toggle("muted", decoded === undefined);
+            record.holder.textContent = decoded === undefined
+              ? "—"
+              : (rc === 1 ? formatRegister(decoded, scope.format) : formatValue(decoded));
           }
         }
 
@@ -2486,10 +2537,10 @@
           if (!device) return;
           const address = cell.address;
           const bit = isBitArea(scope.area);
-          const rc = bit ? 1 : registerCount(scope.dataType);
-          const valueIndex = Math.round((address - scope.start) / rc);
+          const valueIndex = cell.valueIndex;
           const existing = scope.result ? (() => {
             if (bit) return (scope.result.values || [])[valueIndex];
+            const rc = registerCount(scope.dataType);
             const slice = (scope.result.registers || []).slice(valueIndex * rc, valueIndex * rc + rc);
             return slice.length >= rc
               ? decodeRegistersClient(slice, scope.dataType, scope.byteOrder, scope.wordOrder)
@@ -2524,7 +2575,7 @@
             editingCell = null;
             // Nothing was typed: restore the cell from the last read result.
             if (!commit || String(raw).trim() === "" || unchanged) {
-              refreshCell(scope, cell, valueIndex);
+              updateCells(scope);
               return;
             }
             commitInlineWrite(scope, cell, raw);
@@ -2548,10 +2599,10 @@
 
         async function commitInlineWrite(scope, cell, raw) {
           const device = deviceOf(scope);
-          if (!device) { refreshCell(scope, cell, cell.valueIndex); return; }
+          if (!device) { updateCells(scope); return; }
           const address = cell.address;
           const bit = isBitArea(scope.area);
-          const valueIndex = Math.round((address - scope.start) / (bit ? 1 : registerCount(scope.dataType)));
+          const valueIndex = cell.valueIndex;
           try {
             const entry = { area: scope.area, address, unitId: Number(device.unitId) || 0 };
             if (bit) {
@@ -2564,7 +2615,7 @@
               const parsed = Number(raw);
               if (!Number.isFinite(parsed)) {
                 toast(`"${raw}" is not a number`, "error");
-                refreshCell(scope, cell, valueIndex);
+                updateCells(scope);
                 return;
               }
               entry.value = parsed;
@@ -2574,6 +2625,7 @@
             }, 20000);
             const result = (response.results || [])[0];
             state.tx += 1;
+            captureFrames(result && result.frames, device);
             updateCounters();
             if (result && result.ok) {
               toast(`${formatAddress(address)} ← ${raw}`, "info");
@@ -2583,45 +2635,12 @@
               updateCounters();
               noteTransportFailure(device, result && result.error);
               toast((result && result.error) || "Write failed", "error");
-              refreshCell(scope, cell, valueIndex);
+              updateCells(scope);
             }
           } catch (error) {
             noteTransportFailure(device, errorText(error));
             toast(errorText(error), "error");
-            refreshCell(scope, cell, valueIndex);
-          }
-        }
-
-        // Repaint a single cell from the current read result without rebuilding
-        // the grid, used to restore a cell after an inline edit is cancelled.
-        function refreshCell(scope, cell, valueIndex) {
-          const bit = isBitArea(scope.area);
-          const rc = bit ? 1 : registerCount(scope.dataType);
-          const result = scope.result;
-          if (bit) {
-            const value = result && result.values ? result.values[valueIndex] : undefined;
-            cell.bit.className = "bit" + (value === undefined ? " unknown" : (value ? " on" : ""));
-            cell.bit.lastChild.textContent = value === undefined ? "—" : (value ? t.on : t.off);
-            cell.rawCell.textContent = value === undefined ? "" : (value ? "1" : "0");
-            cell.holder.classList.toggle("muted", value === undefined);
-          } else {
-            const slice = result && result.registers
-              ? result.registers.slice(valueIndex * rc, valueIndex * rc + rc)
-              : [];
-            const decoded = slice.length >= rc
-              ? decodeRegistersClient(slice, scope.dataType, scope.byteOrder, scope.wordOrder)
-              : undefined;
-            cell.holder.classList.toggle("muted", decoded === undefined);
-            if (decoded === undefined) {
-              cell.holder.textContent = "—";
-              cell.rawCell.textContent = "";
-            } else if (rc === 1) {
-              cell.holder.textContent = formatRegister(decoded, scope.format);
-              cell.rawCell.textContent = formatRegister(decoded, "hex");
-            } else {
-              cell.holder.textContent = formatValue(decoded);
-              cell.rawCell.textContent = slice.map((word) => formatRegister(word, scope.format)).join(" ");
-            }
+            updateCells(scope);
           }
         }
 
@@ -2726,10 +2745,11 @@
             if (!scope.deviceId || !devices.some((device) => device.id === scope.deviceId)) {
               scope.deviceId = devices[0].id;
             }
-            if (!Number(scope.columns)) scope.columns = SCOPE_DEFAULTS.columns;
             if (!Number(scope.rows)) scope.rows = SCOPE_DEFAULTS.rows;
-            if (!Number.isFinite(Number(scope.page))) scope.page = 0;
-            // Retired field: the unit belongs to the device now.
+            // Retired fields: `page` (paging is gone) and the unit id, which
+            // belongs to the device now.
+            delete scope.page;
+            delete scope.columns;
             delete scope.unitId;
           }
           state.scopes = scopes;

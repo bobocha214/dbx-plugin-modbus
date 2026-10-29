@@ -1,7 +1,7 @@
 ## Plugin update
 
 - Plugin ID: `io.github.yuzhi.modbus` (existing catalog entry, first published at `0.1.0` by merged PR #323)
-- Version: `0.2.1`
+- Version: `0.2.3`
 - Publisher ID: `yuzhi` (unchanged — this is a version update, not a new listing or an identity transfer)
 
 `plugins/io.github.yuzhi.modbus.json` and `catalog/` were not edited by hand; the
@@ -18,14 +18,11 @@ only added file is `candidates/io.github.yuzhi.modbus.json`.
 
 ## Version
 
-`0.2.1` is a fresh tag. `0.2.0` was published as a GitHub release while the
-plugin still carried the `bobocha214` identity, so its artifacts cannot be
-reused: the store binds candidates to exact bytes, and those bytes declare
-`id: io.github.bobocha214.modbus` / `publisher: bobocha214`.
+`0.2.3` is a fresh tag, cut after `0.2.1` on the same `yuzhi` identity.
 
 ## Source repository and tag
 
-https://github.com/bobocha214/dbx-plugin-modbus — tag `v0.2.1`
+https://github.com/bobocha214/dbx-plugin-modbus — tag `v0.2.3`
 
 Candidates are the unsigned `.dbxp` assets attached to that release, built by
 `t8y2/dbx/.github/workflows/plugin-release-reusable.yml@main` on one native
@@ -33,8 +30,21 @@ runner per target (five targets). SHA-256 and size are pinned to the bytes the
 release workflow uploaded; `release-candidates.json` on the release carries the
 same values.
 
-## What 0.2.1 delivers
+## What 0.2.3 delivers
 
+- **The register sheet now follows Modbus Poll.** `Rows` is the only layout
+  setting: columns follow as `values / rows`, values fill down each column and
+  paging is gone, so an address never moves between cells when the view changes.
+  Every cell carries its own address on the left and its value on the right, so
+  no offset has to be counted, and the header still names each column's base
+  address (`00000` style). The sheet sizes to its content instead of stretching
+  across the pane.
+- **A communication view shows the wire.** Every read and write captures the
+  complete MBAP frames it exchanged; the `Frames` drawer lists them newest first
+  with a TX/RX marker and the slave id and function code (or the exception code
+  when the device rejected the request). Retried requests and exception
+  responses are both recorded, which is what makes a failing address diagnosable
+  without a separate sniffing tool.
 - **Connection form asks for a workspace name only.** Host, port, slave id and
   timeout belong to the devices added inside the workbench, so the host dialog no
   longer asks for values the user has not looked up. A workbench opened with no
@@ -50,6 +60,8 @@ same values.
   endpoint re-dials the session.
 - **Writes are explicit.** Double-click a holding register or coil, type, press
   `Enter`. Read-only areas reject writes in the backend as well.
+- **New icon.** The official Modbus mark as a 512×512 vector SVG: the gear and
+  the blue wordmark on a transparent background, with no tile behind them.
 
 ## Permissions, data access, and network access
 
