@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "io.github.yuzhi.modbus",
   "publisher": "yuzhi",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "name": "Modbus TCP",
   "description": "Read and write Modbus TCP registers on PLCs, gateways and remote IO couplers, connecting to the host and port you enter (502 by default). Devices and address ranges are configured inside the workbench, with polling and inline writes that only send on Enter.",
-  "icon": "https://raw.githubusercontent.com/bobocha214/dbx-plugin-modbus/v0.2.1/assets/plugin.svg",
+  "icon": "https://raw.githubusercontent.com/bobocha214/dbx-plugin-modbus/v0.2.2/assets/plugin.svg",
   "tags": [
     "modbus",
     "modbus-tcp",
@@ -20,7 +20,7 @@
   "source": "https://github.com/bobocha214/dbx-plugin-modbus",
   "homepage": "https://github.com/bobocha214/dbx-plugin-modbus",
   "license": "MIT",
-  "releaseNotes": "0.2.1 更新：写入只在按下回车时才下发，Esc 或点开别处即取消；新建连接只需填工作区名称，设备与地址范围都在工作台里配置，不建连接也能直接打开工作台；新建地址范围默认读取 10 个地址，改完定义立刻重新读取，不必再点读取或轮询；数据类型变宽会自动补读缺少的寄存器；改设备地址或超时会自动重连；安装包内置 MIT LICENSE。\n\n0.2.1 is a version update of this listing. Creating a connection asks only for a workspace name: devices are configured and connected inside the workbench, and a workbench opened with no connection still works. A new range reads ten addresses, editing its definition reads again on the spot, and a value is written only by pressing Enter in the cell - Esc or leaving the field cancels. The package now ships the MIT LICENSE.",
+  "releaseNotes": "v0.2.2 更新：地址表格改为 Modbus Poll 式布局——行数（Rows）是唯一的布局设置，列数自动 = 值数量 ÷ 行数，数值按列优先排布（第 i 个值在第 i%行数 行、第 ⌊i/行数⌋ 列），取消了翻页改为整表滚动，同一个地址永远待在同一个格子里；每个格子里左侧是该值的地址（00000 样式）、右侧是值，不必按偏移量心算，表头仍是各列基址；表格不再被拉伸到整个面板宽度。新增「通信报文」面板：每次读写的完整发送（TX）与接收（RX）报文都以十六进制原样显示，并标注从站号与功能码，设备返回异常时显示异常码。图标换成官方 Modbus 图标（512×512 矢量 SVG，透明背景，只有中央的齿轮图形与蓝色字标，没有底板）。\n\nv0.2.2 is a version update of this listing. The register sheet now follows Modbus Poll: Rows is the only layout setting, columns follow as values / rows, values fill down each column and paging is gone, so an address never moves between cells. Every cell shows its address on the left and its value on the right, so no offset has to be counted, and the sheet sizes to its content instead of stretching across the pane. A new communication view shows the complete TX and RX bytes of every read and write, labelled with the slave id and function code, or the exception code when the device rejected the request. The icon is the official Modbus mark: a 512x512 vector SVG with the gear and blue wordmark on a transparent background.",
   "localizations": {
     "zh-CN": {
       "name": "Modbus TCP",
@@ -30,33 +30,33 @@
   "targets": [
     {
       "target": "darwin-arm64",
-      "url": "https://github.com/bobocha214/dbx-plugin-modbus/releases/download/v0.2.1/io.github.yuzhi.modbus-0.2.1-darwin-arm64.dbxp",
-      "sha256": "d85d16c99544a5b1eaea76d0e29fb70476fa02ff29ad4a2a818318ff69b56b40",
-      "size": 319310
+      "url": "https://github.com/bobocha214/dbx-plugin-modbus/releases/download/v0.2.2/io.github.yuzhi.modbus-0.2.2-darwin-arm64.dbxp",
+      "sha256": "71b738207e90d82a0229c251c0a2872cb3b38ad7ea0583c2d36dffde576d1545",
+      "size": 399266
     },
     {
       "target": "darwin-x64",
-      "url": "https://github.com/bobocha214/dbx-plugin-modbus/releases/download/v0.2.1/io.github.yuzhi.modbus-0.2.1-darwin-x64.dbxp",
-      "sha256": "9247d161fb9d8d0ad6d0a3266d8d9f9a44df268cd80a36b6902f0fac427fab34",
-      "size": 340720
+      "url": "https://github.com/bobocha214/dbx-plugin-modbus/releases/download/v0.2.2/io.github.yuzhi.modbus-0.2.2-darwin-x64.dbxp",
+      "sha256": "ad05614ba6f28c317eec400b03f52c449bceb3ebff97e40ef0386b32279f4310",
+      "size": 420572
     },
     {
       "target": "linux-arm64",
-      "url": "https://github.com/bobocha214/dbx-plugin-modbus/releases/download/v0.2.1/io.github.yuzhi.modbus-0.2.1-linux-arm64.dbxp",
-      "sha256": "90280c6c77cc4c8fd0c4f54b6f20fb08fe1ff75ce57566bce78937d1d2f9e996",
-      "size": 342151
+      "url": "https://github.com/bobocha214/dbx-plugin-modbus/releases/download/v0.2.2/io.github.yuzhi.modbus-0.2.2-linux-arm64.dbxp",
+      "sha256": "f10e1a2547545be743fb50f31194a4b7cff63c6b00f6f518fe661f795d1aeae6",
+      "size": 421735
     },
     {
       "target": "linux-x64",
-      "url": "https://github.com/bobocha214/dbx-plugin-modbus/releases/download/v0.2.1/io.github.yuzhi.modbus-0.2.1-linux-x64.dbxp",
-      "sha256": "ac064b44e45fc7c5526a46c45313817b309565d2a3305f4774071e13b69e31a4",
-      "size": 363205
+      "url": "https://github.com/bobocha214/dbx-plugin-modbus/releases/download/v0.2.2/io.github.yuzhi.modbus-0.2.2-linux-x64.dbxp",
+      "sha256": "626df09f27cfed2ddef8987249b99b1e7a14fdb435877f14fac6741e3e54e350",
+      "size": 442771
     },
     {
       "target": "windows-x64",
-      "url": "https://github.com/bobocha214/dbx-plugin-modbus/releases/download/v0.2.1/io.github.yuzhi.modbus-0.2.1-windows-x64.dbxp",
-      "sha256": "3d157b7bef0152289f718a4a24dd1bcac9694f3ea14cf344224e9a028d0b6c4c",
-      "size": 264053
+      "url": "https://github.com/bobocha214/dbx-plugin-modbus/releases/download/v0.2.2/io.github.yuzhi.modbus-0.2.2-windows-x64.dbxp",
+      "sha256": "827faf2ebed749b4545d4d8abb1ed750f5208c291eb6688b57795e9b6bc7b6b8",
+      "size": 344039
     }
   ]
 }
