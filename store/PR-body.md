@@ -1,7 +1,7 @@
 ## Plugin update
 
 - Plugin ID: `io.github.yuzhi.modbus` (existing catalog entry, first published at `0.1.0` by merged PR #323)
-- Version: `0.2.3`
+- Version: `0.2.2`
 - Publisher ID: `yuzhi` (unchanged — this is a version update, not a new listing or an identity transfer)
 
 `plugins/io.github.yuzhi.modbus.json` and `catalog/` were not edited by hand; the
@@ -18,11 +18,11 @@ only added file is `candidates/io.github.yuzhi.modbus.json`.
 
 ## Version
 
-`0.2.3` is a fresh tag, cut after `0.2.1` on the same `yuzhi` identity.
+`0.2.2` is a fresh tag, cut after `0.2.1` on the same `yuzhi` identity.
 
 ## Source repository and tag
 
-https://github.com/bobocha214/dbx-plugin-modbus — tag `v0.2.3`
+https://github.com/bobocha214/dbx-plugin-modbus — tag `v0.2.2`
 
 Candidates are the unsigned `.dbxp` assets attached to that release, built by
 `t8y2/dbx/.github/workflows/plugin-release-reusable.yml@main` on one native
@@ -30,7 +30,7 @@ runner per target (five targets). SHA-256 and size are pinned to the bytes the
 release workflow uploaded; `release-candidates.json` on the release carries the
 same values.
 
-## What 0.2.3 delivers
+## What 0.2.2 delivers
 
 - **The register sheet now follows Modbus Poll.** `Rows` is the only layout
   setting: columns follow as `values / rows`, values fill down each column and
