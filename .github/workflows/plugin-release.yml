@@ -1,21 +1,113 @@
 name: Release DBX plugin
 
+# Two ways in, on purpose:
+#
+#   push of a `vX.Y.Z` tag  -> the `prepare` job creates the GitHub Release and
+#                              the reusable workflow then uploads assets to it.
+#   release published       -> someone created the Release by hand (UI or API);
+#                              `prepare` sees it already exists and only validates.
+#
+# The reusable workflow only *uploads* assets: its `release-tag` input is
+# documented as an "existing GitHub Release tag". That is why tagging used to do
+# nothing — there was no tag trigger at all, and even with one the publish step
+# would have failed with "release not found". `prepare` closes that gap.
 on:
   release:
     types: [published]
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to (re)publish, e.g. v0.2.2
+        required: true
+        type: string
 
 permissions:
   contents: write
 
+# A tag push and a hand-made Release for the same tag must not build twice; a
+# re-run of the same tag joins the queue behind the first run instead of racing.
+concurrency:
+  group: release-${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
+  prepare:
+    name: Validate tag and ensure the Release exists
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      release-tag: ${{ steps.tag.outputs.release-tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create the Release when the tag has none
+        id: tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RAW_TAG: ${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          tag="$RAW_TAG"
+
+          # 1. Shape. Human-facing versions are vX.Y.Z; a bare 0.2.2 tag is a typo.
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::tag '$tag' is not vX.Y.Z (the manifest keeps the bare semver, the tag keeps the v)"
+            exit 1
+          fi
+          version="${tag#v}"
+
+          # 2. The tag must describe the version the package actually builds: a
+          #    tag that disagrees with manifest.json ships a package whose
+          #    internal version differs, which the store rejects.
+          manifest_version="$(node -p "require('./manifest.json').version")"
+          cargo_version="$(awk -F'"' '/^version = "/{print $2; exit}' backend/Cargo.toml)"
+          if [ "$manifest_version" != "$version" ]; then
+            echo "::error::manifest.json declares '$manifest_version' but tag $tag says '$version' — bump manifest.json, backend/Cargo.toml and backend/Cargo.lock before tagging"
+            exit 1
+          fi
+          if [ "$cargo_version" != "$version" ]; then
+            echo "::error::backend/Cargo.toml declares '$cargo_version' but tag $tag says '$version' — the sidecar would report the wrong PLUGIN_VERSION"
+            exit 1
+          fi
+
+          echo "release-tag=$tag" >> "$GITHUB_OUTPUT"
+
+          # 3. The reusable workflow cannot create a Release, only attach to one.
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $tag already exists — the reusable workflow will add its assets."
+            exit 0
+          fi
+
+          notes="store/release-notes/$tag.md"
+          if [ -f "$notes" ]; then
+            # Everything before the first `---` line is the Release body; what
+            # follows is the single-line store blurb that cannot be localised.
+            awk '/^---[[:space:]]*$/{exit} {print}' "$notes" > "$RUNNER_TEMP/release-body.md"
+          else
+            printf 'Release %s\n' "$tag" > "$RUNNER_TEMP/release-body.md"
+          fi
+
+          gh release create "$tag" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$tag" \
+            --notes-file "$RUNNER_TEMP/release-body.md" \
+            --verify-tag
+
   release:
+    name: Build and attach platform packages
+    needs: prepare
     # Pinned to `main`. The ref emitted by `dbx-plugin create`, `plugin-sdk-v1`,
     # no longer exists upstream (neither a tag nor a branch), so the run failed
     # before any platform was built. Pin to a tag or commit SHA if you prefer an
     # immutable ref.
     uses: t8y2/dbx/.github/workflows/plugin-release-reusable.yml@main
     with:
-      release-tag: ${{ github.event.release.tag_name }}
+      release-tag: ${{ needs.prepare.outputs.release-tag }}
       package-command: dbx-plugin package .
       package-path: dist/*.dbxp
       metadata-path: dist/*.artifact.json
